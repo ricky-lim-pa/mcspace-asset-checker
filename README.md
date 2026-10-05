@@ -21,6 +21,8 @@ Example: `FP_US_2026_bigcanvas_oct_android_normal.jpg`
 
 McPO filenames stay unchanged. Order confirmation stays unchanged unless you opt in to rename it with the `order_confirm` suffix.
 
-## Deploy
+## Live site
+
+https://ricky-lim-pa.github.io/mcspace-asset-checker/
 
 Pushes to `main` publish via GitHub Pages.
