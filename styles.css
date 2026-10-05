@@ -252,6 +252,22 @@ textarea, input, select {
 .span-2 { grid-column: 1 / -1; }
 input[type="checkbox"] { width: auto; }
 
+.naming-form .field-invalid input,
+.naming-form .field-invalid select {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+  outline-color: var(--bad);
+}
+
+.field-error {
+  color: var(--bad);
+  font-size: 0.8rem;
+  font-weight: 500;
+  min-height: 1.1em;
+}
+
+.zip-hint.is-error { color: var(--bad); }
+
 .token-preview { color: var(--muted); font-size: 0.9rem; }
 
 .map-row {

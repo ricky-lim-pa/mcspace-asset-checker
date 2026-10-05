@@ -75,27 +75,38 @@
         <h2 id="rename-heading">Rename &amp; Download</h2>
         <p>Device files use <code>{app}_{region}_{year}_{campaign}_{month}_{device}{optional_suffix}.{original_extension}</code>. Example: <code>FP_US_2026_bigcanvas_oct_android_normal.jpg</code>. Original uploads are never changed. Downloads are copies.</p>
       </header>
-      <form id="naming-form" class="naming-form">
-        <label>App
-          <select id="meta-app" required>
+      <form id="naming-form" class="naming-form" novalidate>
+        <label>
+          App
+          <select id="meta-app" required aria-describedby="err-app">
             <option value="">Select</option>
             <option value="FP">FP</option>
             <option value="FG">FG</option>
           </select>
+          <span id="err-app" class="field-error" hidden></span>
         </label>
-        <label>Region
-          <input id="meta-region" list="region-list" autocomplete="off" placeholder="US" required>
+        <label>
+          Region
+          <input id="meta-region" list="region-list" autocomplete="off" placeholder="US" required aria-describedby="err-region">
+          <span id="err-region" class="field-error" hidden></span>
         </label>
-        <label>Year
-          <input id="meta-year" inputmode="numeric" maxlength="4" placeholder="2026" required>
+        <label>
+          Year
+          <input id="meta-year" inputmode="numeric" maxlength="4" placeholder="2026" required aria-describedby="err-year">
+          <span id="err-year" class="field-error" hidden></span>
         </label>
-        <label>Campaign name
-          <input id="meta-campaign" autocomplete="off" placeholder="bigcanvas" required>
+        <label>
+          Campaign name
+          <input id="meta-campaign" autocomplete="off" placeholder="bigcanvas" required aria-describedby="err-campaign">
+          <span id="err-campaign" class="field-error" hidden></span>
         </label>
-        <label>Month token
-          <input id="meta-month" autocomplete="off" placeholder="oct" required>
+        <label>
+          Month token
+          <input id="meta-month" autocomplete="off" placeholder="oct" required aria-describedby="err-month">
+          <span id="err-month" class="field-error" hidden></span>
         </label>
-        <label>Version suffix (optional)
+        <label>
+          Version suffix (optional)
           <input id="meta-suffix" autocomplete="off" placeholder="tomorrow">
         </label>
         <label class="span-2 check-label">

@@ -20,6 +20,7 @@
   const state = {
     files: [],
     selectedId: null,
+    showFieldErrors: false,
   };
 
   const els = {
@@ -260,6 +261,7 @@
       records.push(rec);
     }
     state.files.push(...records);
+    if (records.length) state.showFieldErrors = true;
     markDuplicates();
     render();
   }
@@ -323,6 +325,43 @@
 
   function metaComplete(meta) {
     return meta.app && meta.region && /^\d{4}$/.test(meta.year) && meta.campaign && meta.month;
+  }
+
+  function fieldErrors() {
+    const yearRaw = String(els.metaYear.value || "").trim();
+    return {
+      app: els.metaApp.value ? "" : "Select FP or FG.",
+      region: regionToken(els.metaRegion.value) ? "" : "Enter a region, such as US.",
+      year: /^\d{4}$/.test(yearRaw) ? "" : (yearRaw ? "Enter a 4-digit year." : "Enter a year."),
+      campaign: campaignToken(els.metaCampaign.value) ? "" : "Enter a campaign name.",
+      month: monthToken(els.metaMonth.value) ? "" : "Enter a month token, such as oct.",
+    };
+  }
+
+  function applyFieldErrors() {
+    const errors = fieldErrors();
+    const fields = [
+      [els.metaApp, "err-app", errors.app],
+      [els.metaRegion, "err-region", errors.region],
+      [els.metaYear, "err-year", errors.year],
+      [els.metaCampaign, "err-campaign", errors.campaign],
+      [els.metaMonth, "err-month", errors.month],
+    ];
+    const show = state.showFieldErrors;
+    let firstInvalid = null;
+    for (const [input, errId, message] of fields) {
+      const errEl = document.getElementById(errId);
+      const invalid = show && Boolean(message);
+      input.classList.toggle("is-invalid", invalid);
+      input.setAttribute("aria-invalid", invalid ? "true" : "false");
+      input.closest("label")?.classList.toggle("field-invalid", invalid);
+      if (errEl) {
+        errEl.hidden = !invalid;
+        errEl.textContent = invalid ? message : "";
+      }
+      if (invalid && !firstInvalid) firstInvalid = input;
+    }
+    return { errors, firstInvalid, complete: Object.values(errors).every((msg) => !msg) };
   }
 
   function plannedName(rec, meta) {
@@ -391,6 +430,7 @@
       for (const rec of state.files) if (rec.url) URL.revokeObjectURL(rec.url);
       state.files = [];
       state.selectedId = null;
+      state.showFieldErrors = false;
       render();
     };
   }
@@ -478,6 +518,7 @@
 
   function renderMapping() {
     const { meta, rows } = mapping();
+    const fieldState = applyFieldErrors();
     if (metaComplete(meta)) {
       const suffix = meta.suffix ? `_${meta.suffix}` : "";
       els.tokenPreview.textContent = `Pattern: ${meta.app}_${meta.region}_${meta.year}_${meta.campaign}_${meta.month}_[device]${suffix}.[ext]`;
@@ -487,6 +528,7 @@
     if (!rows.length) {
       els.mappingList.innerHTML = `<p class="preview-note">Filename mapping appears here after you add files.</p>`;
       els.downloadZip.disabled = true;
+      els.zipHint.classList.remove("is-error");
       return;
     }
     els.mappingList.innerHTML = rows.map(({ rec, plan }) => {
@@ -545,9 +587,17 @@
     const collisions = rows.some((r) => r.plan.action === "collision");
     const blocked = rows.some((r) => r.plan.action === "blocked");
     els.downloadZip.disabled = !state.files.length || collisions || blocked;
+    els.zipHint.classList.toggle("is-error", collisions || blocked);
     if (collisions) els.zipHint.textContent = "ZIP is blocked until filename collisions are resolved.";
-    else if (blocked) els.zipHint.textContent = "ZIP is blocked until required naming fields are complete.";
-    else els.zipHint.textContent = "ZIP includes renamed copies, unchanged files in _unchanged, plus a review report and filename mapping. Originals on disk are not modified.";
+    else if (blocked) {
+      const missing = Object.values(fieldState.errors).filter(Boolean);
+      els.zipHint.textContent = missing.length
+        ? `Complete the required fields: ${missing.join(" ")}`
+        : "ZIP is blocked until required naming fields are complete.";
+    } else {
+      els.zipHint.classList.remove("is-error");
+      els.zipHint.textContent = "ZIP includes renamed copies, unchanged files in _unchanged, plus a review report and filename mapping. Originals on disk are not modified.";
+    }
   }
 
   function escapeHtml(s) {
@@ -569,7 +619,13 @@
   async function downloadOne(id) {
     const { rows } = mapping();
     const row = rows.find((r) => r.rec.id === id);
-    if (!row || row.plan.action === "collision" || row.plan.action === "blocked") return;
+    if (!row) return;
+    if (row.plan.action === "collision" || row.plan.action === "blocked") {
+      state.showFieldErrors = true;
+      const { firstInvalid } = applyFieldErrors();
+      firstInvalid?.focus();
+      return;
+    }
     const a = document.createElement("a");
     a.href = URL.createObjectURL(row.rec.file);
     a.download = row.plan.name;
@@ -628,10 +684,17 @@
   async function downloadZip() {
     if (typeof JSZip === "undefined") {
       els.zipHint.textContent = "ZIP library failed to load. Check the network and retry.";
+      els.zipHint.classList.add("is-error");
       return;
     }
+    state.showFieldErrors = true;
+    const { complete, firstInvalid } = applyFieldErrors();
     const { rows } = mapping();
-    if (rows.some((r) => r.plan.action === "collision" || r.plan.action === "blocked")) return;
+    if (!complete || rows.some((r) => r.plan.action === "collision" || r.plan.action === "blocked")) {
+      firstInvalid?.focus();
+      renderMapping();
+      return;
+    }
     const zip = new JSZip();
     for (const { rec, plan } of rows) {
       const buf = await rec.file.arrayBuffer();
@@ -719,6 +782,12 @@
       markDuplicates();
       renderPackages();
       renderMapping();
+    });
+  });
+  ["meta-app", "meta-region", "meta-year", "meta-campaign", "meta-month"].forEach((id) => {
+    document.getElementById(id).addEventListener("blur", () => {
+      state.showFieldErrors = true;
+      applyFieldErrors();
     });
   });
   els.downloadZip.addEventListener("click", () => downloadZip());
