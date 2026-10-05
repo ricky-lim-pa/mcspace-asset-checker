@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>McSpace Asset Checker &amp; Renamer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <p class="eyebrow">FreePrints McSpace</p>
+      <h1>McSpace Asset Checker &amp; Renamer</h1>
+      <p class="lede">Check your McSpace delivery and prepare correctly named files for upload.</p>
+      <ol class="help">
+        <li>Drop your creative files or folders.</li>
+        <li>Review size checks and inspect the artwork.</li>
+        <li>Enter the app, region, year, campaign, and month.</li>
+        <li>Review the new filenames and download your ZIP.</li>
+      </ol>
+      <p class="privacy">Files stay on this device. Nothing is uploaded.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="drop-section" aria-labelledby="upload-heading">
+      <h2 id="upload-heading" class="visually-hidden">Upload</h2>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Drop images or folders here">
+        <strong>Drop images or folders here</strong>
+        <span>JPG, PNG, WebP, and GIF. Folders are scanned. Packaging files such as .DS_Store are ignored.</span>
+        <div class="drop-actions">
+          <button type="button" id="browse-files" class="btn">Browse files</button>
+          <button type="button" id="browse-folder" class="btn btn-secondary">Browse folder</button>
+        </div>
+      </div>
+      <input id="file-input" type="file" accept="image/*" multiple hidden>
+      <input id="folder-input" type="file" webkitdirectory directory multiple hidden>
+      <div id="upload-status" class="upload-status" hidden></div>
+    </section>
+
+    <section id="check-section" class="tool-section" aria-labelledby="check-heading">
+      <header class="tool-head">
+        <h2 id="check-heading">Check Creative Assets</h2>
+        <p>Dimensions are read from the image pixels, not from the filename. Completeness is checked separately for each app, region, and version. This tool does not approve copy or visuals.</p>
+      </header>
+      <div id="package-summary" class="package-summary"></div>
+      <div class="check-layout">
+        <div class="results-pane">
+          <div id="file-list" class="file-list"></div>
+        </div>
+        <aside class="preview-pane" aria-labelledby="preview-heading">
+          <h3 id="preview-heading">Artwork preview</h3>
+          <p class="preview-note">Use this view to check text clipping, legibility, offer wording, product size, shipping message, CTA, and expiry badge. Checks below are manual reviewer notes only.</p>
+          <div id="preview-stage" class="preview-stage empty">Select a file to inspect.</div>
+          <form id="review-form" class="review-form" hidden>
+            <fieldset>
+              <legend>Manual review</legend>
+              <label><input type="checkbox" name="clipping"> Text clipping</label>
+              <label><input type="checkbox" name="legibility"> Legibility</label>
+              <label><input type="checkbox" name="offer"> Offer wording</label>
+              <label><input type="checkbox" name="product"> Product size</label>
+              <label><input type="checkbox" name="shipping"> Shipping message</label>
+              <label><input type="checkbox" name="cta"> CTA</label>
+              <label><input type="checkbox" name="expiry"> Expiry badge</label>
+            </fieldset>
+            <label class="notes-label" for="review-notes">Reviewer notes</label>
+            <textarea id="review-notes" rows="4" placeholder="Issues, locale mismatches, or follow-ups"></textarea>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <section id="rename-section" class="tool-section" aria-labelledby="rename-heading">
+      <header class="tool-head">
+        <h2 id="rename-heading">Rename &amp; Download</h2>
+        <p>Device files use <code>{app}_{region}_{year}_{campaign}_{month}_{device}{optional_suffix}.{original_extension}</code>. Example: <code>FP_US_2026_bigcanvas_oct_android_normal.jpg</code>. Original uploads are never changed. Downloads are copies.</p>
+      </header>
+      <form id="naming-form" class="naming-form">
+        <label>App
+          <select id="meta-app" required>
+            <option value="">Select</option>
+            <option value="FP">FP</option>
+            <option value="FG">FG</option>
+          </select>
+        </label>
+        <label>Region
+          <input id="meta-region" list="region-list" autocomplete="off" placeholder="US" required>
+        </label>
+        <label>Year
+          <input id="meta-year" inputmode="numeric" maxlength="4" placeholder="2026" required>
+        </label>
+        <label>Campaign name
+          <input id="meta-campaign" autocomplete="off" placeholder="bigcanvas" required>
+        </label>
+        <label>Month token
+          <input id="meta-month" autocomplete="off" placeholder="oct" required>
+        </label>
+        <label>Version suffix (optional)
+          <input id="meta-suffix" autocomplete="off" placeholder="tomorrow">
+        </label>
+        <label class="span-2 check-label">
+          <input type="checkbox" id="rename-order-confirm">
+          Rename order confirmation files using the same format and an <code>order_confirm</code> suffix
+        </label>
+      </form>
+      <datalist id="region-list">
+        <option value="US"></option>
+        <option value="UK"></option>
+        <option value="IE"></option>
+        <option value="AU"></option>
+        <option value="CA"></option>
+        <option value="NZ"></option>
+        <option value="DE"></option>
+        <option value="FR"></option>
+        <option value="ES"></option>
+        <option value="IT"></option>
+        <option value="NL"></option>
+        <option value="BE"></option>
+        <option value="AT"></option>
+        <option value="CH"></option>
+        <option value="DK"></option>
+        <option value="SE"></option>
+        <option value="NO"></option>
+        <option value="FI"></option>
+        <option value="PL"></option>
+      </datalist>
+      <p id="naming-preview-token" class="token-preview"></p>
+      <div id="mapping-list" class="mapping-list"></div>
+      <div class="download-bar">
+        <button type="button" id="download-zip" class="btn" disabled>Download Renamed ZIP</button>
+        <p id="zip-hint" class="zip-hint">Fix collisions and required naming fields before downloading a ZIP.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer wrap">
+    <p>Manual visual review only. Size checks do not mean copy, layout, or campaign approval.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
