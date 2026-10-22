@@ -260,7 +260,8 @@
       if (!burstPack) {
         const list = files.filter((rec) => rec.match.key === ver);
         const cls = list.length ? "ok" : "bad";
-        return `<tr><th>${sizeHeading(ver)}</th><td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(ver)}">${list.length ? `Yes (${list.length})` : "Missing"}</button></td></tr>`;
+        const mark = list.length ? "✓" : "";
+        return `<tr><th>${sizeHeading(ver)}</th><td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(ver)}" aria-label="${list.length ? "Present" : "Missing"}">${mark}</button></td></tr>`;
       }
       let rowHave = 0;
       const tds = sizeKeys.map((key) => {
@@ -268,8 +269,9 @@
         if (list.length) rowHave += 1;
         const pending = reading && SCARCITY_KEYS.includes(ver) && !list.length;
         const cls = list.length ? "ok" : pending ? "" : "bad";
-        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : pending ? "Reading…" : "Missing";
-        return `<td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}">${label}</button></td>`;
+        const mark = list.length ? "✓" : pending ? "…" : "";
+        const aria = list.length ? "Present" : pending ? "Reading" : "Missing";
+        return `<td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}" aria-label="${aria}">${mark}</button></td>`;
       }).join("");
       return `<tr><th>${escapeHtml(burstLabel(ver))}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
     }).join("");
