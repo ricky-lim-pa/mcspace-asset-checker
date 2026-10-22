@@ -58,8 +58,6 @@
     files: [],
     selectedId: null,
     showFieldErrors: false,
-    filters: { pack: "", size: "", version: "", app: "", sort: "name" },
-    expected: { pcuFg: 10, pcuOther: 5, mcspace: 1, home_hero: 1, fc_promo_home_hero: 1 },
   };
 
   const els = {
@@ -87,15 +85,6 @@
     downloadZip: document.getElementById("download-zip"),
     zipHint: document.getElementById("zip-hint"),
     sizeMap: document.getElementById("size-map"),
-    filterPack: document.getElementById("filter-pack"),
-    filterSize: document.getElementById("filter-size"),
-    filterVersion: document.getElementById("filter-version"),
-    filterApp: document.getElementById("filter-app"),
-    filterSort: document.getElementById("filter-sort"),
-    expectPcuFg: document.getElementById("expect-pcu-fg"),
-    expectPcuOther: document.getElementById("expect-pcu-other"),
-    expectMcspace: document.getElementById("expect-mcspace"),
-    batchTracker: document.getElementById("batch-tracker"),
   };
 
   function uid() {
@@ -196,19 +185,6 @@
     return rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "";
   }
 
-  function recAppId(rec) {
-    if (rec.parsed.app) return rec.parsed.app;
-    if (/^FPG(?:[_-]|$)/i.test(rec.name) || /(?:^|[\\/_])FPG(?:[\\/_-]|$)/i.test(rec.rel || "")) return "FG";
-    if (/^FPC(?:[_-]|$)/i.test(rec.name)) return "FC";
-    return els.metaApp?.value || "";
-  }
-
-  function burstLabel(key) {
-    if (key === "none") return "No expiry burst";
-    if (key === "reading") return "Reading burst…";
-    return SCARCITY_BURSTS.find((b) => b.key === key)?.label || key;
-  }
-
   function burstKeyFromName(rec) {
     const suffix = String(rec.suffixOverride || rec.parsed.suffix || "").toLowerCase();
     if (SCARCITY_KEYS.includes(suffix)) return suffix;
@@ -232,214 +208,8 @@
     return pack === "pcu" || pack === "mcspace";
   }
 
-  function readExpectedFromUI() {
-    const num = (el, fallback) => Math.max(1, Number(el?.value) || fallback);
-    state.expected.pcuFg = num(els.expectPcuFg, 10);
-    state.expected.pcuOther = num(els.expectPcuOther, 5);
-    state.expected.mcspace = num(els.expectMcspace, 1);
-  }
-
-  function expectedVersionCount(pack, app) {
-    readExpectedFromUI();
-    if (pack === "pcu") return app === "FG" ? state.expected.pcuFg : state.expected.pcuOther;
-    if (pack === "mcspace") return state.expected.mcspace;
-    return 1;
-  }
-
-  function readFiltersFromUI() {
-    state.filters.pack = els.filterPack?.value || "";
-    state.filters.size = els.filterSize?.value || "";
-    state.filters.version = els.filterVersion?.value || "";
-    state.filters.app = els.filterApp?.value || "";
-    state.filters.sort = els.filterSort?.value || "name";
-  }
-
-  function visibleFiles() {
-    readFiltersFromUI();
-    const rows = state.files.filter((rec) => {
-      if (state.filters.pack && recPackId(rec) !== state.filters.pack) return false;
-      if (state.filters.size && rec.match?.key !== state.filters.size) return false;
-      if (state.filters.version && versionToken(rec) !== state.filters.version) return false;
-      if (state.filters.app && recAppId(rec) !== state.filters.app) return false;
-      return true;
-    });
-    const sort = state.filters.sort;
-    rows.sort((a, b) => {
-      const av = (key) => {
-        if (key === "size") return `${a.match?.w || 0}x${a.match?.h || 0} ${a.match?.label || ""}`;
-        if (key === "version") return versionToken(a);
-        if (key === "status") return `${a.status} ${a.burst?.key || ""}`;
-        return a.name;
-      };
-      const bv = (key) => {
-        if (key === "size") return `${b.match?.w || 0}x${b.match?.h || 0} ${b.match?.label || ""}`;
-        if (key === "version") return versionToken(b);
-        if (key === "status") return `${b.status} ${b.burst?.key || ""}`;
-        return b.name;
-      };
-      return av(sort).localeCompare(bv(sort), undefined, { numeric: true, sensitivity: "base" });
-    });
-    return rows;
-  }
-
-  function fillSelect(select, values, current, allLabel) {
-    if (!select) return;
-    const opts = [`<option value="">${escapeHtml(allLabel)}</option>`];
-    for (const value of values) {
-      const selected = value === current ? " selected" : "";
-      opts.push(`<option value="${escapeHtml(value)}"${selected}>${escapeHtml(value)}</option>`);
-    }
-    select.innerHTML = opts.join("");
-    if (current && values.includes(current)) select.value = current;
-  }
-
-  function refreshFilterOptions() {
-    const packs = [...new Set(state.files.map(recPackId).filter((p) => PACKS[p]))];
-    fillSelect(els.filterPack, packs, state.filters.pack, "All batches");
-    if (els.filterPack) {
-      [...els.filterPack.options].forEach((opt) => {
-        if (opt.value && PACKS[opt.value]) opt.textContent = PACKS[opt.value].title;
-      });
-    }
-    const inPack = state.files.filter((rec) => !state.filters.pack || recPackId(rec) === state.filters.pack);
-    const apps = [...new Set(inPack.map(recAppId).filter(Boolean))];
-    fillSelect(els.filterApp, apps, state.filters.app, "All apps");
-    const scoped = inPack.filter((rec) => !state.filters.app || recAppId(rec) === state.filters.app);
-    const sizes = [...new Set(scoped.map((rec) => rec.match?.key).filter(Boolean))];
-    const versions = [...new Set(scoped.map(versionToken))];
-    fillSelect(els.filterSize, sizes, state.filters.size, "All sizes");
-    if (els.filterSize) {
-      [...els.filterSize.options].forEach((opt) => {
-        const spec = ALL_SIZES.find((s) => s.key === opt.value);
-        if (spec) opt.textContent = `${spec.label} ${spec.w}×${spec.h}`;
-      });
-    }
-    const burstOpts = SCARCITY_KEYS.concat(versions.filter((v) => !SCARCITY_KEYS.includes(v)));
-    fillSelect(els.filterVersion, burstOpts, state.filters.version, "All bursts");
-    if (els.filterVersion) {
-      [...els.filterVersion.options].forEach((opt) => {
-        if (opt.value) opt.textContent = burstLabel(opt.value);
-      });
-    }
-    if (els.filterSort) els.filterSort.value = state.filters.sort || "name";
-    state.filters.pack = els.filterPack?.value || "";
-    state.filters.size = els.filterSize?.value || "";
-    state.filters.version = els.filterVersion?.value || "";
-    state.filters.app = els.filterApp?.value || "";
-    state.filters.sort = els.filterSort?.value || "name";
-  }
-
-  function sizeHeading(key) {
-    const spec = ALL_SIZES.find((s) => s.key === key);
-    if (!spec) return escapeHtml(key);
-    return `${escapeHtml(spec.label)}<br>${spec.w}×${spec.h}`;
-  }
-
-  function trackerGroupKey(rec) {
-    return `${recPackId(rec) || "unknown"}::${recAppId(rec) || "Unknown app"}`;
-  }
-
-  function renderTrackerTable(packId, app, files) {
-    const spec = PACKS[packId];
-    const sizeKeys = spec
-      ? spec.required.concat(spec.extra.map((s) => s.key))
-      : [...new Set(files.map((rec) => rec.match.key))];
-    const burstPack = usesBurstRows(packId);
-    const versions = burstPack
-      ? SCARCITY_KEYS.concat([...new Set(files.map(versionToken))].filter((key) => !SCARCITY_KEYS.includes(key) && key !== "reading"))
-      : [...new Set(files.map(versionToken))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
-    const expected = expectedVersionCount(packId, app);
-    const cells = {};
-    for (const rec of files) {
-      const key = `${versionToken(rec)}::${rec.match.key}`;
-      if (!cells[key]) cells[key] = [];
-      cells[key].push(rec);
-    }
-    const reading = files.some((rec) => rec.burst?.status === "reading");
-    const head = `<tr><th>${burstPack ? "Scarcity burst" : "Version"}</th>${sizeKeys.map((key) => `<th>${sizeHeading(key)}</th>`).join("")}<th>Row</th></tr>`;
-    const body = versions.map((ver) => {
-      let rowHave = 0;
-      const tds = sizeKeys.map((key) => {
-        const list = cells[`${ver}::${key}`] || [];
-        if (list.length) rowHave += 1;
-        const pending = reading && burstPack && SCARCITY_KEYS.includes(ver) && !list.length;
-        const cls = list.length ? "ok" : pending ? "" : "bad";
-        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : pending ? "Reading…" : "Missing";
-        return `<td class="${cls}"><button type="button" data-track-pack="${escapeHtml(packId)}" data-track-app="${escapeHtml(app)}" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}">${label}</button></td>`;
-      }).join("");
-      return `<tr><th>${escapeHtml(burstLabel(ver))}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
-    }).join("");
-    const burstFoot = sizeKeys.map((key) => {
-      const found = new Set(
-        files.filter((rec) => rec.match.key === key && SCARCITY_KEYS.includes(versionToken(rec))).map(versionToken)
-      ).size;
-      const cls = found >= SCARCITY_KEYS.length ? "ok" : "bad";
-      const missing = Math.max(0, SCARCITY_KEYS.length - found);
-      return `<td class="${cls}">${found}/${SCARCITY_KEYS.length}${missing ? ` · need ${missing}` : ""}</td>`;
-    }).join("");
-    const fileFoot = sizeKeys.map((key) => {
-      const count = files.filter((rec) => rec.match.key === key).length;
-      const cls = count >= expected ? "ok" : "bad";
-      const missing = Math.max(0, expected - count);
-      return `<td class="${cls}">${count}/${expected}${missing ? ` · need ${missing}` : ""}</td>`;
-    }).join("");
-    const foot = burstPack
-      ? `<tr><th>Bursts present / ${SCARCITY_KEYS.length}</th>${burstFoot}<td></td></tr>
-         <tr><th>Files / expected ${expected}</th>${fileFoot}<td></td></tr>`
-      : `<tr><th>Files / expected ${expected}</th>${fileFoot}<td></td></tr>`;
-    const title = `${PACKS[packId]?.title || packId} · ${app || "Unknown app"}`;
-    const note = burstPack
-      ? `Rows are the scarcity bursts: Expires soon, Expires tomorrow, Ends in two days, and Expires tonight. Each size should have those four bursts. File counts still use ${expected} expected files per size${packId === "pcu" ? (app === "FG" ? " for FG" : " for other apps") : ""}.`
-      : `Each version should include every required size. Expected files: ${expected}.`;
-    return `<section class="track-block">
-      <h3>${escapeHtml(title)}</h3>
-      <p class="preview-note">${escapeHtml(note)}</p>
-      <table class="track-table"><thead>${head}</thead><tbody>${body}${foot}</tbody></table>
-    </section>`;
-  }
-
-  function renderTracker() {
-    if (!els.batchTracker) return;
-    const pack = els.filterPack?.value || "";
-    const appFilter = els.filterApp?.value || "";
-    const packFiles = state.files.filter((rec) => {
-      if (!rec.match) return false;
-      if (pack && recPackId(rec) !== pack) return false;
-      if (appFilter && recAppId(rec) !== appFilter) return false;
-      return true;
-    });
-    if (!state.files.length) {
-      els.batchTracker.innerHTML = `<p class="preview-note">Drop a large batch, then filter by batch, size, and scarcity burst. PCU and McSpace rows are Expires soon, Expires tomorrow, Ends in two days, and Expires tonight.</p>`;
-      return;
-    }
-    if (!packFiles.length) {
-      els.batchTracker.innerHTML = `<p class="preview-note">No matched sizes for this batch and app filter.</p>`;
-      return;
-    }
-    const groups = {};
-    for (const rec of packFiles) {
-      const key = trackerGroupKey(rec);
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(rec);
-    }
-    els.batchTracker.innerHTML = Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, files]) => {
-        const [packId, app] = key.split("::");
-        return renderTrackerTable(packId, app, files);
-      })
-      .join("");
-    els.batchTracker.querySelectorAll("[data-track-size]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (els.filterPack) els.filterPack.value = btn.getAttribute("data-track-pack") || "";
-        if (els.filterApp) els.filterApp.value = btn.getAttribute("data-track-app") || "";
-        if (els.filterVersion) els.filterVersion.value = btn.getAttribute("data-track-ver") || "";
-        if (els.filterSize) els.filterSize.value = btn.getAttribute("data-track-size") || "";
-        readFiltersFromUI();
-        refreshFilterOptions();
-        renderFileList();
-      });
-    });
+  function sortByName(a, b) {
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
   }
 
   function majorityForPack(pack) {
@@ -572,9 +342,7 @@
       done += 1;
       const progress = document.getElementById("ocr-progress");
       if (progress) progress.textContent = `Burst text ${done}/${targets.length}`;
-      refreshFilterOptions();
       renderPackages();
-      renderTracker();
       renderFileList();
     }
     const progress = document.getElementById("ocr-progress");
@@ -927,7 +695,7 @@
     if (rec.status === "unreadable") return ["Unreadable", "status-bad"];
     if (!rec.match) return ["Unsupported size", "status-warn"];
     const named = `${rec.match.label} ${rec.w}×${rec.h}`;
-    if (rec.duplicate) return [`Duplicate · ${named}`, "status-warn"];
+    if (rec.duplicate) return ["Duplicate", "status-warn"];
     if (rec.match.pack !== "mcspace" || rec.match.role === "extra") return [named, "status-info"];
     return [named, "status-ok"];
   }
@@ -1001,34 +769,63 @@
     els.packageSummary.innerHTML = `<div class="pkg-card detect-card"><h3>Detected batch</h3><p>${escapeHtml(detected)}</p></div>${cards}`;
   }
 
-  function renderFileList() {
-    if (!state.files.length) {
-      els.fileList.innerHTML = `<p class="preview-note">Results will list thumbnails, original names, actual pixel size, matched type, and status.</p>`;
-      return;
-    }
-    const rows = visibleFiles();
-    if (!rows.length) {
-      els.fileList.innerHTML = `<p class="preview-note">No files match the current batch, size, version, or app filters.</p>`;
-      return;
-    }
-    els.fileList.innerHTML = rows.map((rec) => {
-      const [label, cls] = statusLabel(rec);
-      const dim = rec.readable ? `${rec.w}×${rec.h}` : "n/a";
-      const type = rec.match ? rec.match.key : "none";
-      const selected = rec.id === state.selectedId ? " selected" : "";
-      const thumb = rec.url ? `<img src="${rec.url}" alt="">` : `<div></div>`;
-      return `<article class="file-row${selected}" data-id="${rec.id}">
-        ${thumb}
-        <div class="file-meta">
-          <div class="name">${escapeHtml(rec.name)}</div>
-          <div class="sub">${escapeHtml(rec.rel)} · ${dim} · ${escapeHtml(type)}${rec.burst && rec.burst.status !== "skipped" ? ` · ${escapeHtml(rec.burst.label || "Burst pending")}` : ""}</div>
-        </div>
+  function fileRowHtml(rec) {
+    const [label, cls] = statusLabel(rec);
+    const dim = rec.readable ? `${rec.w}×${rec.h}` : "n/a";
+    const type = rec.match ? rec.match.label || rec.match.key : "none";
+    const selected = rec.id === state.selectedId ? " selected" : "";
+    const thumb = rec.url ? `<img src="${rec.url}" alt="">` : `<div></div>`;
+    return `<article class="file-row${selected}" data-id="${rec.id}">
+      ${thumb}
+      <div class="file-meta">
+        <div class="name">${escapeHtml(rec.name)}</div>
+        <div class="sub">${escapeHtml(rec.rel)} · ${dim} · ${escapeHtml(type)}</div>
         <div class="status-stack">
           <span class="status ${cls}">${escapeHtml(label)}</span>
-          ${rec.burst && rec.burst.status !== "skipped" ? `<span class="status ${rec.burst.mismatch ? "status-bad" : rec.burst.status === "found" ? "status-ok" : rec.burst.status === "reading" ? "status-info" : "status-warn"}">${escapeHtml(rec.burst.label || "Burst")}</span>` : ""}
         </div>
-      </article>`;
-    }).join("");
+      </div>
+    </article>`;
+  }
+
+  function burstGroupHtml(title, files, emptyNote) {
+    const body = files.length
+      ? files.slice().sort(sortByName).map(fileRowHtml).join("")
+      : `<p class="preview-note">${escapeHtml(emptyNote)}</p>`;
+    return `<section class="burst-group">
+      <h3>${escapeHtml(title)} <span class="burst-count">${files.length}</span></h3>
+      ${body}
+    </section>`;
+  }
+
+  function renderFileList() {
+    if (!state.files.length) {
+      els.fileList.innerHTML = `<p class="preview-note">Results will list thumbnails, original names, actual pixel size, matched type, and status, grouped by scarcity burst.</p>`;
+      return;
+    }
+    const burstFiles = [];
+    const otherFiles = [];
+    for (const rec of state.files) {
+      if (usesBurstRows(recPackId(rec))) burstFiles.push(rec);
+      else otherFiles.push(rec);
+    }
+    const buckets = {};
+    for (const rec of burstFiles) {
+      const key = versionToken(rec);
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(rec);
+    }
+    let html = "";
+    if (burstFiles.length || otherFiles.length === 0) {
+      html += SCARCITY_BURSTS.map((burst) =>
+        burstGroupHtml(burst.label, buckets[burst.key] || [], "No files for this scarcity burst.")
+      ).join("");
+      if (buckets.reading?.length) html += burstGroupHtml("Reading burst…", buckets.reading, "");
+      if (buckets.none?.length) html += burstGroupHtml("No expiry burst", buckets.none, "");
+    }
+    if (otherFiles.length) {
+      html += burstGroupHtml("Other assets", otherFiles, "");
+    }
+    els.fileList.innerHTML = html;
     els.fileList.querySelectorAll(".file-row").forEach((row) => {
       row.addEventListener("click", () => {
         state.selectedId = row.dataset.id;
@@ -1157,11 +954,9 @@
   }
 
   function render() {
-    refreshFilterOptions();
     renderSizeMap();
     renderUploadStatus();
     renderPackages();
-    renderTracker();
     renderFileList();
     renderPreview();
     renderMapping();
@@ -1350,19 +1145,6 @@
     });
   });
   els.downloadZip.addEventListener("click", () => downloadZip());
-
-  function onFilterChange() {
-    readFiltersFromUI();
-    refreshFilterOptions();
-    renderTracker();
-    renderFileList();
-  }
-  [els.filterPack, els.filterSize, els.filterVersion, els.filterApp, els.filterSort].forEach((el) => {
-    el?.addEventListener("change", onFilterChange);
-  });
-  [els.expectPcuFg, els.expectPcuOther, els.expectMcspace].forEach((el) => {
-    el?.addEventListener("input", () => renderTracker());
-  });
 
   render();
 })();
