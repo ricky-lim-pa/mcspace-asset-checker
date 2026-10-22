@@ -175,6 +175,33 @@ html, body {
 .pkg-card .ok { color: var(--ok); }
 .pkg-card .bad { color: var(--bad); }
 
+.batch-tracker {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  overflow: auto;
+}
+.batch-tracker > h3 { margin: 0 0 4px; font-size: 1rem; }
+.track-block { margin-top: 12px; }
+.track-block h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.track-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.track-table th, .track-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.track-table .ok { color: var(--ok); background: var(--ok-bg); }
+.track-table .bad { color: var(--bad); background: var(--bad-bg); }
+.track-table button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-align: left;
+}
+.file-row.track-hit { outline: 2px solid var(--accent-2); }
+
 .burst-group {
   display: flex;
   flex-direction: column;

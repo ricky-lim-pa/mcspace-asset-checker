@@ -85,6 +85,7 @@
     downloadZip: document.getElementById("download-zip"),
     zipHint: document.getElementById("zip-hint"),
     sizeMap: document.getElementById("size-map"),
+    batchTracker: document.getElementById("batch-tracker"),
   };
 
   function uid() {
@@ -185,6 +186,25 @@
     return rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "";
   }
 
+  function recAppId(rec) {
+    if (rec.parsed.app) return rec.parsed.app;
+    if (/^FPG(?:[_-]|$)/i.test(rec.name) || /(?:^|[\\/_])FPG(?:[\\/_-]|$)/i.test(rec.rel || "")) return "FG";
+    if (/^FPC(?:[_-]|$)/i.test(rec.name)) return "FC";
+    return els.metaApp?.value || "";
+  }
+
+  function burstLabel(key) {
+    if (key === "none") return "No expiry burst";
+    if (key === "reading") return "Reading burst…";
+    return SCARCITY_BURSTS.find((b) => b.key === key)?.label || key;
+  }
+
+  function sizeHeading(key) {
+    const spec = ALL_SIZES.find((s) => s.key === key);
+    if (!spec) return escapeHtml(key);
+    return `${escapeHtml(spec.label)}<br>${spec.w}×${spec.h}`;
+  }
+
   function burstKeyFromName(rec) {
     const suffix = String(rec.suffixOverride || rec.parsed.suffix || "").toLowerCase();
     if (SCARCITY_KEYS.includes(suffix)) return suffix;
@@ -210,6 +230,103 @@
 
   function sortByName(a, b) {
     return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function trackerGroupKey(rec) {
+    return `${recPackId(rec) || "unknown"}::${recAppId(rec) || "Unknown app"}`;
+  }
+
+  function renderTrackerTable(packId, app, files) {
+    const spec = PACKS[packId];
+    const sizeKeys = spec
+      ? spec.required.concat(spec.extra.map((s) => s.key))
+      : [...new Set(files.map((rec) => rec.match.key))];
+    const burstPack = usesBurstRows(packId);
+    const versions = burstPack
+      ? SCARCITY_KEYS.concat([...new Set(files.map(versionToken))].filter((key) => !SCARCITY_KEYS.includes(key) && key !== "reading"))
+      : [...new Set(files.map((rec) => rec.match?.key || "none"))];
+    const cells = {};
+    for (const rec of files) {
+      const rowKey = burstPack ? versionToken(rec) : rec.match?.key || "none";
+      const key = `${rowKey}::${rec.match.key}`;
+      if (!cells[key]) cells[key] = [];
+      cells[key].push(rec);
+    }
+    const reading = files.some((rec) => rec.burst?.status === "reading");
+    const head = burstPack
+      ? `<tr><th>Scarcity burst</th>${sizeKeys.map((key) => `<th>${sizeHeading(key)}</th>`).join("")}<th>Row</th></tr>`
+      : `<tr><th>Size</th><th>Present</th></tr>`;
+    const body = (burstPack ? SCARCITY_KEYS.concat(versions.filter((k) => !SCARCITY_KEYS.includes(k))) : sizeKeys).map((ver) => {
+      if (!burstPack) {
+        const list = files.filter((rec) => rec.match.key === ver);
+        const cls = list.length ? "ok" : "bad";
+        return `<tr><th>${sizeHeading(ver)}</th><td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(ver)}">${list.length ? `Yes (${list.length})` : "Missing"}</button></td></tr>`;
+      }
+      let rowHave = 0;
+      const tds = sizeKeys.map((key) => {
+        const list = cells[`${ver}::${key}`] || [];
+        if (list.length) rowHave += 1;
+        const pending = reading && SCARCITY_KEYS.includes(ver) && !list.length;
+        const cls = list.length ? "ok" : pending ? "" : "bad";
+        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : pending ? "Reading…" : "Missing";
+        return `<td class="${cls}"><button type="button" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}">${label}</button></td>`;
+      }).join("");
+      return `<tr><th>${escapeHtml(burstLabel(ver))}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
+    }).join("");
+    const foot = burstPack
+      ? `<tr><th>Bursts present / ${SCARCITY_KEYS.length}</th>${sizeKeys.map((key) => {
+          const found = new Set(
+            files.filter((rec) => rec.match.key === key && SCARCITY_KEYS.includes(versionToken(rec))).map(versionToken)
+          ).size;
+          const cls = found >= SCARCITY_KEYS.length ? "ok" : "bad";
+          const missing = Math.max(0, SCARCITY_KEYS.length - found);
+          return `<td class="${cls}">${found}/${SCARCITY_KEYS.length}${missing ? ` · need ${missing}` : ""}</td>`;
+        }).join("")}<td></td></tr>`
+      : "";
+    const title = `${PACKS[packId]?.title || packId} · ${app || "Unknown app"}`;
+    return `<section class="track-block">
+      <h3>${escapeHtml(title)}</h3>
+      <table class="track-table"><thead>${head}</thead><tbody>${body}${foot}</tbody></table>
+    </section>`;
+  }
+
+  function renderTracker() {
+    if (!els.batchTracker) return;
+    const packFiles = state.files.filter((rec) => rec.match);
+    if (!state.files.length) {
+      els.batchTracker.innerHTML = `<p class="preview-note">Drop a batch to see which scarcity bursts and sizes are present or missing.</p>`;
+      return;
+    }
+    if (!packFiles.length) {
+      els.batchTracker.innerHTML = `<p class="preview-note">No matched sizes yet.</p>`;
+      return;
+    }
+    const groups = {};
+    for (const rec of packFiles) {
+      const key = trackerGroupKey(rec);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(rec);
+    }
+    els.batchTracker.innerHTML = Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, files]) => {
+        const [packId, app] = key.split("::");
+        return renderTrackerTable(packId, app, files);
+      })
+      .join("");
+    els.batchTracker.querySelectorAll("[data-track-ver]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ver = btn.getAttribute("data-track-ver") || "";
+        const size = btn.getAttribute("data-track-size") || "";
+        const group = document.getElementById(`burst-group-${ver}`);
+        group?.scrollIntoView({ behavior: "smooth", block: "start" });
+        els.fileList.querySelectorAll(".file-row").forEach((row) => {
+          const rec = state.files.find((f) => f.id === row.dataset.id);
+          const match = rec && versionToken(rec) === ver && (!size || rec.match?.key === size);
+          row.classList.toggle("track-hit", Boolean(match));
+        });
+      });
+    });
   }
 
   function majorityForPack(pack) {
@@ -331,6 +448,7 @@
     for (const rec of targets) rec.burst = { status: "reading", key: "", label: "Reading burst…" };
     renderFileList();
     renderPackages();
+    renderTracker();
     let done = 0;
     for (const rec of targets) {
       if (scanId !== ocrScanId) return;
@@ -343,6 +461,7 @@
       const progress = document.getElementById("ocr-progress");
       if (progress) progress.textContent = `Burst text ${done}/${targets.length}`;
       renderPackages();
+      renderTracker();
       renderFileList();
     }
     const progress = document.getElementById("ocr-progress");
@@ -787,11 +906,11 @@
     </article>`;
   }
 
-  function burstGroupHtml(title, files, emptyNote) {
+  function burstGroupHtml(title, files, emptyNote, key) {
     const body = files.length
       ? files.slice().sort(sortByName).map(fileRowHtml).join("")
       : `<p class="preview-note">${escapeHtml(emptyNote)}</p>`;
-    return `<section class="burst-group">
+    return `<section class="burst-group" id="burst-group-${escapeHtml(key || "other")}">
       <h3>${escapeHtml(title)} <span class="burst-count">${files.length}</span></h3>
       ${body}
     </section>`;
@@ -817,13 +936,13 @@
     let html = "";
     if (burstFiles.length || otherFiles.length === 0) {
       html += SCARCITY_BURSTS.map((burst) =>
-        burstGroupHtml(burst.label, buckets[burst.key] || [], "No files for this scarcity burst.")
+        burstGroupHtml(burst.label, buckets[burst.key] || [], "No files for this scarcity burst.", burst.key)
       ).join("");
-      if (buckets.reading?.length) html += burstGroupHtml("Reading burst…", buckets.reading, "");
-      if (buckets.none?.length) html += burstGroupHtml("No expiry burst", buckets.none, "");
+      if (buckets.reading?.length) html += burstGroupHtml("Reading burst…", buckets.reading, "", "reading");
+      if (buckets.none?.length) html += burstGroupHtml("No expiry burst", buckets.none, "", "none");
     }
     if (otherFiles.length) {
-      html += burstGroupHtml("Other assets", otherFiles, "");
+      html += burstGroupHtml("Other assets", otherFiles, "", "other");
     }
     els.fileList.innerHTML = html;
     els.fileList.querySelectorAll(".file-row").forEach((row) => {
@@ -957,6 +1076,7 @@
     renderSizeMap();
     renderUploadStatus();
     renderPackages();
+    renderTracker();
     renderFileList();
     renderPreview();
     renderMapping();
