@@ -46,6 +46,13 @@
   const IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
   const SKIP_NAMES = /^(?:\._|\.)|^\.ds_store$|^thumbs\.db$|^desktop\.ini$/i;
   const VERSION_RE = /(?:[-_])(tomorrow|tonight|today|soon|2day)$/i;
+  const SCARCITY_BURSTS = [
+    { key: "soon", label: "Expires soon" },
+    { key: "tomorrow", label: "Expires tomorrow" },
+    { key: "2day", label: "Ends in two days" },
+    { key: "tonight", label: "Expires tonight" },
+  ];
+  const SCARCITY_KEYS = SCARCITY_BURSTS.map((b) => b.key);
 
   const state = {
     files: [],
@@ -196,25 +203,33 @@
     return els.metaApp?.value || "";
   }
 
+  function burstLabel(key) {
+    if (key === "none") return "No expiry burst";
+    if (key === "reading") return "Reading burst…";
+    return SCARCITY_BURSTS.find((b) => b.key === key)?.label || key;
+  }
+
+  function burstKeyFromName(rec) {
+    const suffix = String(rec.suffixOverride || rec.parsed.suffix || "").toLowerCase();
+    if (SCARCITY_KEYS.includes(suffix)) return suffix;
+    const n = `${rec.rel || ""} ${rec.name || ""}`.toLowerCase();
+    if (/tomorrow/.test(n)) return "tomorrow";
+    if (/tonight/.test(n)) return "tonight";
+    if (/2day|two[\s_-]*days/.test(n)) return "2day";
+    if (/(?:^|[_\-\s])soon(?:$|[_\-\s.])/.test(n)) return "soon";
+    return "";
+  }
+
   function versionToken(rec) {
-    if (rec.suffixOverride) return rec.suffixOverride;
-    if (rec.parsed.suffix) return rec.parsed.suffix;
-    let stem = baseOf(rec.name).replace(/\.[^.]+$/, "");
-    stem = stem.replace(/[_-]?\d{3,5}\s*[x×]\s*\d{3,5}$/i, "");
-    const keys = ALL_SIZES.map((s) => s.key).sort((a, b) => b.length - a.length);
-    for (const key of keys) stem = stem.replace(new RegExp(`[_-]?${key}$`, "i"), "");
-    stem = stem.replace(/[_-]?(normal|aspect|iphone[_-]?x|ipad|android[_-]?folded|android[_-]?normal|android[_-]?pad)$/i, "");
-    stem = stem.replace(/[_-]+$/g, "");
-    if (stem) {
-      if (rec.burst?.status === "found" && rec.burst.key && !stem.toLowerCase().includes(rec.burst.key)) {
-        return `${stem} · ${rec.burst.key}`;
-      }
-      return stem;
-    }
-    const parts = String(rec.rel || "").split(/[\\/]/).filter(Boolean);
-    if (parts.length >= 2) return parts[parts.length - 2];
     if (rec.burst?.status === "found" && rec.burst.key) return rec.burst.key;
+    const named = burstKeyFromName(rec);
+    if (named) return named;
+    if (rec.burst?.status === "reading") return "reading";
     return "none";
+  }
+
+  function usesBurstRows(pack) {
+    return pack === "pcu" || pack === "mcspace";
   }
 
   function readExpectedFromUI() {
@@ -299,7 +314,13 @@
         if (spec) opt.textContent = `${spec.label} ${spec.w}×${spec.h}`;
       });
     }
-    fillSelect(els.filterVersion, versions, state.filters.version, "All versions");
+    const burstOpts = SCARCITY_KEYS.concat(versions.filter((v) => !SCARCITY_KEYS.includes(v)));
+    fillSelect(els.filterVersion, burstOpts, state.filters.version, "All bursts");
+    if (els.filterVersion) {
+      [...els.filterVersion.options].forEach((opt) => {
+        if (opt.value) opt.textContent = burstLabel(opt.value);
+      });
+    }
     if (els.filterSort) els.filterSort.value = state.filters.sort || "name";
     state.filters.pack = els.filterPack?.value || "";
     state.filters.size = els.filterSize?.value || "";
@@ -323,7 +344,10 @@
     const sizeKeys = spec
       ? spec.required.concat(spec.extra.map((s) => s.key))
       : [...new Set(files.map((rec) => rec.match.key))];
-    const versions = [...new Set(files.map(versionToken))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+    const burstPack = usesBurstRows(packId);
+    const versions = burstPack
+      ? SCARCITY_KEYS.concat([...new Set(files.map(versionToken))].filter((key) => !SCARCITY_KEYS.includes(key) && key !== "reading"))
+      : [...new Set(files.map(versionToken))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
     const expected = expectedVersionCount(packId, app);
     const cells = {};
     for (const rec of files) {
@@ -331,28 +355,42 @@
       if (!cells[key]) cells[key] = [];
       cells[key].push(rec);
     }
-    const head = `<tr><th>Version</th>${sizeKeys.map((key) => `<th>${sizeHeading(key)}</th>`).join("")}<th>Row</th></tr>`;
+    const reading = files.some((rec) => rec.burst?.status === "reading");
+    const head = `<tr><th>${burstPack ? "Scarcity burst" : "Version"}</th>${sizeKeys.map((key) => `<th>${sizeHeading(key)}</th>`).join("")}<th>Row</th></tr>`;
     const body = versions.map((ver) => {
       let rowHave = 0;
       const tds = sizeKeys.map((key) => {
         const list = cells[`${ver}::${key}`] || [];
         if (list.length) rowHave += 1;
-        const cls = list.length ? "ok" : "bad";
-        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : "Missing";
+        const pending = reading && burstPack && SCARCITY_KEYS.includes(ver) && !list.length;
+        const cls = list.length ? "ok" : pending ? "" : "bad";
+        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : pending ? "Reading…" : "Missing";
         return `<td class="${cls}"><button type="button" data-track-pack="${escapeHtml(packId)}" data-track-app="${escapeHtml(app)}" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}">${label}</button></td>`;
       }).join("");
-      return `<tr><th>${escapeHtml(ver)}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
+      return `<tr><th>${escapeHtml(burstLabel(ver))}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
     }).join("");
-    const foot = `<tr><th>Unique versions / expected ${expected}</th>${sizeKeys.map((key) => {
-      const count = new Set(files.filter((rec) => rec.match.key === key).map(versionToken)).size;
+    const burstFoot = sizeKeys.map((key) => {
+      const found = new Set(
+        files.filter((rec) => rec.match.key === key && SCARCITY_KEYS.includes(versionToken(rec))).map(versionToken)
+      ).size;
+      const cls = found >= SCARCITY_KEYS.length ? "ok" : "bad";
+      const missing = Math.max(0, SCARCITY_KEYS.length - found);
+      return `<td class="${cls}">${found}/${SCARCITY_KEYS.length}${missing ? ` · need ${missing}` : ""}</td>`;
+    }).join("");
+    const fileFoot = sizeKeys.map((key) => {
+      const count = files.filter((rec) => rec.match.key === key).length;
       const cls = count >= expected ? "ok" : "bad";
       const missing = Math.max(0, expected - count);
       return `<td class="${cls}">${count}/${expected}${missing ? ` · need ${missing}` : ""}</td>`;
-    }).join("")}<td>${versions.length}/${expected}</td></tr>`;
+    }).join("");
+    const foot = burstPack
+      ? `<tr><th>Bursts present / ${SCARCITY_KEYS.length}</th>${burstFoot}<td></td></tr>
+         <tr><th>Files / expected ${expected}</th>${fileFoot}<td></td></tr>`
+      : `<tr><th>Files / expected ${expected}</th>${fileFoot}<td></td></tr>`;
     const title = `${PACKS[packId]?.title || packId} · ${app || "Unknown app"}`;
-    const note = packId === "pcu"
-      ? `PCU expects ${expected} versions per size for ${app === "FG" ? "FG" : "other apps"}. Edit the expected boxes if this dump is different.`
-      : `Each version should include every required size. Expected versions: ${expected}.`;
+    const note = burstPack
+      ? `Rows are the scarcity bursts: Expires soon, Expires tomorrow, Ends in two days, and Expires tonight. Each size should have those four bursts. File counts still use ${expected} expected files per size${packId === "pcu" ? (app === "FG" ? " for FG" : " for other apps") : ""}.`
+      : `Each version should include every required size. Expected files: ${expected}.`;
     return `<section class="track-block">
       <h3>${escapeHtml(title)}</h3>
       <p class="preview-note">${escapeHtml(note)}</p>
@@ -371,7 +409,7 @@
       return true;
     });
     if (!state.files.length) {
-      els.batchTracker.innerHTML = `<p class="preview-note">Drop a large batch, then filter by batch and size. The table counts unique versions per size so you can see what is missing.</p>`;
+      els.batchTracker.innerHTML = `<p class="preview-note">Drop a large batch, then filter by batch, size, and scarcity burst. PCU and McSpace rows are Expires soon, Expires tomorrow, Ends in two days, and Expires tonight.</p>`;
       return;
     }
     if (!packFiles.length) {
