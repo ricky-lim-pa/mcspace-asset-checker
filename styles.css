@@ -175,6 +175,37 @@ html, body {
 .pkg-card .ok { color: var(--ok); }
 .pkg-card .bad { color: var(--bad); }
 
+.filter-bar {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.expected-row,
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 12px;
+  margin-bottom: 10px;
+}
+.filter-bar label { font-weight: 600; font-size: 0.85rem; display: grid; gap: 4px; }
+.batch-tracker { overflow: auto; }
+.track-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+.track-table th, .track-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.track-table .ok { color: var(--ok); }
+.track-table .bad { color: var(--bad); }
+.track-table button {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
 .check-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
@@ -314,6 +345,41 @@ input[type="checkbox"] { width: auto; }
 
 .download-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
 .zip-hint { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+.filter-bar {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  display: grid;
+  gap: 12px;
+}
+.expected-row,
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+.filter-bar label { font-weight: 600; font-size: 0.85rem; display: grid; gap: 4px; }
+.filter-bar input,
+.filter-bar select { min-width: 140px; }
+.batch-tracker { overflow: auto; }
+.track-block { margin-top: 12px; }
+.track-block h3 { margin: 0 0 4px; font-size: 1rem; }
+.track-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+.track-table th, .track-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.track-table .ok { color: var(--ok); background: var(--ok-bg); }
+.track-table .bad { color: var(--bad); background: var(--bad-bg); }
+.track-table button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
 
 .site-footer { padding: 8px 20px 40px; color: var(--muted); font-size: 0.9rem; }
 

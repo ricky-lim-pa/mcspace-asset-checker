@@ -51,6 +51,8 @@
     files: [],
     selectedId: null,
     showFieldErrors: false,
+    filters: { pack: "", size: "", version: "", app: "", sort: "name" },
+    expected: { pcuFg: 10, pcuOther: 5, mcspace: 1, home_hero: 1, fc_promo_home_hero: 1 },
   };
 
   const els = {
@@ -78,6 +80,15 @@
     downloadZip: document.getElementById("download-zip"),
     zipHint: document.getElementById("zip-hint"),
     sizeMap: document.getElementById("size-map"),
+    filterPack: document.getElementById("filter-pack"),
+    filterSize: document.getElementById("filter-size"),
+    filterVersion: document.getElementById("filter-version"),
+    filterApp: document.getElementById("filter-app"),
+    filterSort: document.getElementById("filter-sort"),
+    expectPcuFg: document.getElementById("expect-pcu-fg"),
+    expectPcuOther: document.getElementById("expect-pcu-other"),
+    expectMcspace: document.getElementById("expect-mcspace"),
+    batchTracker: document.getElementById("batch-tracker"),
   };
 
   function uid() {
@@ -172,6 +183,225 @@
       ? rec.suffixOverride
       : parsed.suffix || "base";
     return `${packTitle} · ${app} · ${region} · ${version}`;
+  }
+
+  function recPackId(rec) {
+    return rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "";
+  }
+
+  function recAppId(rec) {
+    if (rec.parsed.app) return rec.parsed.app;
+    if (/^FPG(?:[_-]|$)/i.test(rec.name) || /(?:^|[\\/_])FPG(?:[\\/_-]|$)/i.test(rec.rel || "")) return "FG";
+    if (/^FPC(?:[_-]|$)/i.test(rec.name)) return "FC";
+    return els.metaApp?.value || "";
+  }
+
+  function versionToken(rec) {
+    if (rec.suffixOverride) return rec.suffixOverride;
+    if (rec.parsed.suffix) return rec.parsed.suffix;
+    let stem = baseOf(rec.name).replace(/\.[^.]+$/, "");
+    stem = stem.replace(/[_-]?\d{3,5}\s*[x×]\s*\d{3,5}$/i, "");
+    const keys = ALL_SIZES.map((s) => s.key).sort((a, b) => b.length - a.length);
+    for (const key of keys) stem = stem.replace(new RegExp(`[_-]?${key}$`, "i"), "");
+    stem = stem.replace(/[_-]?(normal|aspect|iphone[_-]?x|ipad|android[_-]?folded|android[_-]?normal|android[_-]?pad)$/i, "");
+    stem = stem.replace(/[_-]+$/g, "");
+    if (stem) {
+      if (rec.burst?.status === "found" && rec.burst.key && !stem.toLowerCase().includes(rec.burst.key)) {
+        return `${stem} · ${rec.burst.key}`;
+      }
+      return stem;
+    }
+    const parts = String(rec.rel || "").split(/[\\/]/).filter(Boolean);
+    if (parts.length >= 2) return parts[parts.length - 2];
+    if (rec.burst?.status === "found" && rec.burst.key) return rec.burst.key;
+    return "none";
+  }
+
+  function readExpectedFromUI() {
+    const num = (el, fallback) => Math.max(1, Number(el?.value) || fallback);
+    state.expected.pcuFg = num(els.expectPcuFg, 10);
+    state.expected.pcuOther = num(els.expectPcuOther, 5);
+    state.expected.mcspace = num(els.expectMcspace, 1);
+  }
+
+  function expectedVersionCount(pack, app) {
+    readExpectedFromUI();
+    if (pack === "pcu") return app === "FG" ? state.expected.pcuFg : state.expected.pcuOther;
+    if (pack === "mcspace") return state.expected.mcspace;
+    return 1;
+  }
+
+  function readFiltersFromUI() {
+    state.filters.pack = els.filterPack?.value || "";
+    state.filters.size = els.filterSize?.value || "";
+    state.filters.version = els.filterVersion?.value || "";
+    state.filters.app = els.filterApp?.value || "";
+    state.filters.sort = els.filterSort?.value || "name";
+  }
+
+  function visibleFiles() {
+    readFiltersFromUI();
+    const rows = state.files.filter((rec) => {
+      if (state.filters.pack && recPackId(rec) !== state.filters.pack) return false;
+      if (state.filters.size && rec.match?.key !== state.filters.size) return false;
+      if (state.filters.version && versionToken(rec) !== state.filters.version) return false;
+      if (state.filters.app && recAppId(rec) !== state.filters.app) return false;
+      return true;
+    });
+    const sort = state.filters.sort;
+    rows.sort((a, b) => {
+      const av = (key) => {
+        if (key === "size") return `${a.match?.w || 0}x${a.match?.h || 0} ${a.match?.label || ""}`;
+        if (key === "version") return versionToken(a);
+        if (key === "status") return `${a.status} ${a.burst?.key || ""}`;
+        return a.name;
+      };
+      const bv = (key) => {
+        if (key === "size") return `${b.match?.w || 0}x${b.match?.h || 0} ${b.match?.label || ""}`;
+        if (key === "version") return versionToken(b);
+        if (key === "status") return `${b.status} ${b.burst?.key || ""}`;
+        return b.name;
+      };
+      return av(sort).localeCompare(bv(sort), undefined, { numeric: true, sensitivity: "base" });
+    });
+    return rows;
+  }
+
+  function fillSelect(select, values, current, allLabel) {
+    if (!select) return;
+    const opts = [`<option value="">${escapeHtml(allLabel)}</option>`];
+    for (const value of values) {
+      const selected = value === current ? " selected" : "";
+      opts.push(`<option value="${escapeHtml(value)}"${selected}>${escapeHtml(value)}</option>`);
+    }
+    select.innerHTML = opts.join("");
+    if (current && values.includes(current)) select.value = current;
+  }
+
+  function refreshFilterOptions() {
+    const packs = [...new Set(state.files.map(recPackId).filter((p) => PACKS[p]))];
+    fillSelect(els.filterPack, packs, state.filters.pack, "All batches");
+    if (els.filterPack) {
+      [...els.filterPack.options].forEach((opt) => {
+        if (opt.value && PACKS[opt.value]) opt.textContent = PACKS[opt.value].title;
+      });
+    }
+    const inPack = state.files.filter((rec) => !state.filters.pack || recPackId(rec) === state.filters.pack);
+    const apps = [...new Set(inPack.map(recAppId).filter(Boolean))];
+    fillSelect(els.filterApp, apps, state.filters.app, "All apps");
+    const scoped = inPack.filter((rec) => !state.filters.app || recAppId(rec) === state.filters.app);
+    const sizes = [...new Set(scoped.map((rec) => rec.match?.key).filter(Boolean))];
+    const versions = [...new Set(scoped.map(versionToken))];
+    fillSelect(els.filterSize, sizes, state.filters.size, "All sizes");
+    if (els.filterSize) {
+      [...els.filterSize.options].forEach((opt) => {
+        const spec = ALL_SIZES.find((s) => s.key === opt.value);
+        if (spec) opt.textContent = `${spec.label} ${spec.w}×${spec.h}`;
+      });
+    }
+    fillSelect(els.filterVersion, versions, state.filters.version, "All versions");
+    if (els.filterSort) els.filterSort.value = state.filters.sort || "name";
+    state.filters.pack = els.filterPack?.value || "";
+    state.filters.size = els.filterSize?.value || "";
+    state.filters.version = els.filterVersion?.value || "";
+    state.filters.app = els.filterApp?.value || "";
+    state.filters.sort = els.filterSort?.value || "name";
+  }
+
+  function sizeHeading(key) {
+    const spec = ALL_SIZES.find((s) => s.key === key);
+    if (!spec) return escapeHtml(key);
+    return `${escapeHtml(spec.label)}<br>${spec.w}×${spec.h}`;
+  }
+
+  function trackerGroupKey(rec) {
+    return `${recPackId(rec) || "unknown"}::${recAppId(rec) || "Unknown app"}`;
+  }
+
+  function renderTrackerTable(packId, app, files) {
+    const spec = PACKS[packId];
+    const sizeKeys = spec
+      ? spec.required.concat(spec.extra.map((s) => s.key))
+      : [...new Set(files.map((rec) => rec.match.key))];
+    const versions = [...new Set(files.map(versionToken))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+    const expected = expectedVersionCount(packId, app);
+    const cells = {};
+    for (const rec of files) {
+      const key = `${versionToken(rec)}::${rec.match.key}`;
+      if (!cells[key]) cells[key] = [];
+      cells[key].push(rec);
+    }
+    const head = `<tr><th>Version</th>${sizeKeys.map((key) => `<th>${sizeHeading(key)}</th>`).join("")}<th>Row</th></tr>`;
+    const body = versions.map((ver) => {
+      let rowHave = 0;
+      const tds = sizeKeys.map((key) => {
+        const list = cells[`${ver}::${key}`] || [];
+        if (list.length) rowHave += 1;
+        const cls = list.length ? "ok" : "bad";
+        const label = list.length > 1 ? `Yes (${list.length})` : list.length ? "Yes" : "Missing";
+        return `<td class="${cls}"><button type="button" data-track-pack="${escapeHtml(packId)}" data-track-app="${escapeHtml(app)}" data-track-ver="${escapeHtml(ver)}" data-track-size="${escapeHtml(key)}">${label}</button></td>`;
+      }).join("");
+      return `<tr><th>${escapeHtml(ver)}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
+    }).join("");
+    const foot = `<tr><th>Unique versions / expected ${expected}</th>${sizeKeys.map((key) => {
+      const count = new Set(files.filter((rec) => rec.match.key === key).map(versionToken)).size;
+      const cls = count >= expected ? "ok" : "bad";
+      const missing = Math.max(0, expected - count);
+      return `<td class="${cls}">${count}/${expected}${missing ? ` · need ${missing}` : ""}</td>`;
+    }).join("")}<td>${versions.length}/${expected}</td></tr>`;
+    const title = `${PACKS[packId]?.title || packId} · ${app || "Unknown app"}`;
+    const note = packId === "pcu"
+      ? `PCU expects ${expected} versions per size for ${app === "FG" ? "FG" : "other apps"}. Edit the expected boxes if this dump is different.`
+      : `Each version should include every required size. Expected versions: ${expected}.`;
+    return `<section class="track-block">
+      <h3>${escapeHtml(title)}</h3>
+      <p class="preview-note">${escapeHtml(note)}</p>
+      <table class="track-table"><thead>${head}</thead><tbody>${body}${foot}</tbody></table>
+    </section>`;
+  }
+
+  function renderTracker() {
+    if (!els.batchTracker) return;
+    const pack = els.filterPack?.value || "";
+    const appFilter = els.filterApp?.value || "";
+    const packFiles = state.files.filter((rec) => {
+      if (!rec.match) return false;
+      if (pack && recPackId(rec) !== pack) return false;
+      if (appFilter && recAppId(rec) !== appFilter) return false;
+      return true;
+    });
+    if (!state.files.length) {
+      els.batchTracker.innerHTML = `<p class="preview-note">Drop a large batch, then filter by batch and size. The table counts unique versions per size so you can see what is missing.</p>`;
+      return;
+    }
+    if (!packFiles.length) {
+      els.batchTracker.innerHTML = `<p class="preview-note">No matched sizes for this batch and app filter.</p>`;
+      return;
+    }
+    const groups = {};
+    for (const rec of packFiles) {
+      const key = trackerGroupKey(rec);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(rec);
+    }
+    els.batchTracker.innerHTML = Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, files]) => {
+        const [packId, app] = key.split("::");
+        return renderTrackerTable(packId, app, files);
+      })
+      .join("");
+    els.batchTracker.querySelectorAll("[data-track-size]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (els.filterPack) els.filterPack.value = btn.getAttribute("data-track-pack") || "";
+        if (els.filterApp) els.filterApp.value = btn.getAttribute("data-track-app") || "";
+        if (els.filterVersion) els.filterVersion.value = btn.getAttribute("data-track-ver") || "";
+        if (els.filterSize) els.filterSize.value = btn.getAttribute("data-track-size") || "";
+        readFiltersFromUI();
+        refreshFilterOptions();
+        renderFileList();
+      });
+    });
   }
 
   function majorityForPack(pack) {
@@ -304,8 +534,10 @@
       done += 1;
       const progress = document.getElementById("ocr-progress");
       if (progress) progress.textContent = `Burst text ${done}/${targets.length}`;
-      renderFileList();
+      refreshFilterOptions();
       renderPackages();
+      renderTracker();
+      renderFileList();
     }
     const progress = document.getElementById("ocr-progress");
     if (progress) progress.textContent = "Burst text checked.";
@@ -736,7 +968,12 @@
       els.fileList.innerHTML = `<p class="preview-note">Results will list thumbnails, original names, actual pixel size, matched type, and status.</p>`;
       return;
     }
-    els.fileList.innerHTML = state.files.map((rec) => {
+    const rows = visibleFiles();
+    if (!rows.length) {
+      els.fileList.innerHTML = `<p class="preview-note">No files match the current batch, size, version, or app filters.</p>`;
+      return;
+    }
+    els.fileList.innerHTML = rows.map((rec) => {
       const [label, cls] = statusLabel(rec);
       const dim = rec.readable ? `${rec.w}×${rec.h}` : "n/a";
       const type = rec.match ? rec.match.key : "none";
@@ -882,9 +1119,11 @@
   }
 
   function render() {
+    refreshFilterOptions();
     renderSizeMap();
     renderUploadStatus();
     renderPackages();
+    renderTracker();
     renderFileList();
     renderPreview();
     renderMapping();
@@ -1073,6 +1312,19 @@
     });
   });
   els.downloadZip.addEventListener("click", () => downloadZip());
+
+  function onFilterChange() {
+    readFiltersFromUI();
+    refreshFilterOptions();
+    renderTracker();
+    renderFileList();
+  }
+  [els.filterPack, els.filterSize, els.filterVersion, els.filterApp, els.filterSort].forEach((el) => {
+    el?.addEventListener("change", onFilterChange);
+  });
+  [els.expectPcuFg, els.expectPcuOther, els.expectMcspace].forEach((el) => {
+    el?.addEventListener("input", () => renderTracker());
+  });
 
   render();
 })();
