@@ -77,6 +77,7 @@
     mappingList: document.getElementById("mapping-list"),
     downloadZip: document.getElementById("download-zip"),
     zipHint: document.getElementById("zip-hint"),
+    sizeMap: document.getElementById("size-map"),
   };
 
   function uid() {
@@ -356,7 +357,10 @@
       const complete = missing.length === 0;
       lines.push(`<li class="${complete ? "ok" : "bad"}">${escapeHtml(spec.title)}: ${spec.required.filter((k) => have.has(k)).length}/${spec.required.length} ${complete ? "complete" : "incomplete"}</li>`);
       if (missing.length) {
-        const labels = missing.map((k) => ALL_SIZES.find((s) => s.key === k)?.label || k);
+        const labels = missing.map((k) => {
+          const spec = ALL_SIZES.find((s) => s.key === k);
+          return spec ? `${spec.label} (${spec.w}×${spec.h})` : k;
+        });
         lines.push(`<li class="bad">Missing: ${escapeHtml(labels.join(", "))}</li>`);
       }
       for (const extra of spec.extra) {
@@ -472,9 +476,28 @@
   function statusLabel(rec) {
     if (rec.status === "unreadable") return ["Unreadable", "status-bad"];
     if (!rec.match) return ["Unsupported size", "status-warn"];
-    if (rec.duplicate) return ["Duplicate", "status-warn"];
-    if (rec.match.pack !== "mcspace" || rec.match.role === "extra") return [rec.match.label || rec.match.key, "status-info"];
-    return [rec.match.key, "status-ok"];
+    const named = `${rec.match.label} ${rec.w}×${rec.h}`;
+    if (rec.duplicate) return [`Duplicate · ${named}`, "status-warn"];
+    if (rec.match.pack !== "mcspace" || rec.match.role === "extra") return [named, "status-info"];
+    return [named, "status-ok"];
+  }
+
+  function renderSizeMap() {
+    if (!els.sizeMap) return;
+    const packOrder = Object.keys(PACKS);
+    els.sizeMap.innerHTML = `<div class="size-map-grid">${packOrder.map((packId) => {
+      const spec = PACKS[packId];
+      const rows = ALL_SIZES.filter((s) => s.pack === packId).map((s) =>
+        `<tr><td><code>${escapeHtml(s.label)}</code></td><td>${s.w}×${s.h}</td></tr>`
+      ).join("");
+      return `<div class="size-map-card">
+        <h4>${escapeHtml(spec.title)}</h4>
+        <table>
+          <thead><tr><th>Label</th><th>Size</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join("")}</div>`;
   }
 
   function renderUploadStatus() {
@@ -662,6 +685,7 @@
   }
 
   function render() {
+    renderSizeMap();
     renderUploadStatus();
     renderPackages();
     renderFileList();

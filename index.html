@@ -43,47 +43,11 @@
         <h2 id="check-heading">Check Creative Assets</h2>
         <p>Dimensions are read from the image pixels, not from the filename. Completeness is checked separately for each app, region, version, and asset pack. FG home hero, PCU, and FC Promo Home Hero are size checks only. This tool does not approve copy or visuals.</p>
       </header>
-      <details class="size-ref">
-        <summary>Accepted sizes</summary>
-        <div class="size-ref-grid">
-          <div>
-            <h3>McSpace</h3>
-            <ul>
-              <li>1080×624 android_normal</li>
-              <li>1242×669 iphone</li>
-              <li>1242×810 iphone_x</li>
-              <li>1440×963 android_aspect_ratio_2</li>
-              <li>1536×686 android_pad</li>
-              <li>1668×761 ipad</li>
-              <li>2160×700 android_folded</li>
-              <li>1029×619 order_confirm</li>
-              <li>1120×1560 McPO</li>
-            </ul>
-          </div>
-          <div>
-            <h3>FG home hero</h3>
-            <ul>
-              <li>994×1024 home hero</li>
-            </ul>
-            <h3>FG PCU</h3>
-            <ul>
-              <li>750×1334 normal</li>
-              <li>1125×2436 iphone_x</li>
-              <li>1440×3200 aspect</li>
-              <li>1536×2048 ipad</li>
-              <li>1856×2200 android_folded</li>
-            </ul>
-            <p>These PCU tokens match the app slot names. They are not the McSpace device sizes.</p>
-            <h3>FC Promo Home Hero</h3>
-            <ul>
-              <li>1200×394</li>
-              <li>1200×606</li>
-              <li>2048×518</li>
-              <li>2048×614</li>
-            </ul>
-          </div>
-        </div>
-      </details>
+      <section class="size-map" aria-labelledby="size-map-heading">
+        <h3 id="size-map-heading">Size map</h3>
+        <p class="preview-note">Labels are matched from actual pixels. PCU tokens use the app slot names. They are not the McSpace device sizes of the same name.</p>
+        <div id="size-map"></div>
+      </section>
       <div id="package-summary" class="package-summary"></div>
       <div class="check-layout">
         <div class="results-pane">
