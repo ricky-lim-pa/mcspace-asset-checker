@@ -10,11 +10,11 @@
     { w: 1029, h: 619, key: "order_confirm", pack: "mcspace", role: "extra", label: "order_confirm" },
     { w: 1120, h: 1560, key: "McPO", pack: "mcspace", role: "extra", label: "McPO" },
     { w: 994, h: 1024, key: "fg_home_hero", pack: "home_hero", role: "required", label: "FG home hero" },
-    { w: 750, h: 1334, key: "pcu_750x1334", pack: "pcu", role: "required", label: "PCU 750×1334" },
-    { w: 1125, h: 2436, key: "pcu_1125x2436", pack: "pcu", role: "required", label: "PCU 1125×2436" },
-    { w: 1440, h: 3200, key: "pcu_1440x3200", pack: "pcu", role: "required", label: "PCU 1440×3200" },
-    { w: 1536, h: 2048, key: "pcu_1536x2048", pack: "pcu", role: "required", label: "PCU 1536×2048" },
-    { w: 1856, h: 2200, key: "pcu_1856x2200", pack: "pcu", role: "required", label: "PCU 1856×2200" },
+    { w: 750, h: 1334, key: "pcu_normal", pack: "pcu", role: "required", label: "normal" },
+    { w: 1125, h: 2436, key: "pcu_iphone_x", pack: "pcu", role: "required", label: "iphone_x" },
+    { w: 1440, h: 3200, key: "pcu_aspect", pack: "pcu", role: "required", label: "aspect" },
+    { w: 1536, h: 2048, key: "pcu_ipad", pack: "pcu", role: "required", label: "ipad" },
+    { w: 1856, h: 2200, key: "pcu_android_folded", pack: "pcu", role: "required", label: "android_folded" },
   ];
   const PACKS = {
     mcspace: {
