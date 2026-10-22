@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>McSpace Asset Checker &amp; Renamer</title>
+  <title>Mobile Asset Checker &amp; Renamer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
-      <p class="eyebrow">FreePrints McSpace</p>
-      <h1>McSpace Asset Checker &amp; Renamer</h1>
-      <p class="lede">Check your McSpace delivery and prepare correctly named files for upload.</p>
+      <p class="eyebrow">FreePrints</p>
+      <h1>Mobile Asset Checker &amp; Renamer</h1>
+      <p class="lede">Check your McSpace, FG home hero, and PCU delivery and prepare correctly named McSpace files for upload.</p>
       <ol class="help">
         <li>Drop your creative files or folders.</li>
         <li>Review size checks and inspect the artwork.</li>
@@ -41,8 +41,41 @@
     <section id="check-section" class="tool-section" aria-labelledby="check-heading">
       <header class="tool-head">
         <h2 id="check-heading">Check Creative Assets</h2>
-        <p>Dimensions are read from the image pixels, not from the filename. Completeness is checked separately for each app, region, and version. This tool does not approve copy or visuals.</p>
+        <p>Dimensions are read from the image pixels, not from the filename. Completeness is checked separately for each app, region, version, and asset pack. FG home hero and PCU are size checks only. This tool does not approve copy or visuals.</p>
       </header>
+      <details class="size-ref">
+        <summary>Accepted sizes</summary>
+        <div class="size-ref-grid">
+          <div>
+            <h3>McSpace</h3>
+            <ul>
+              <li>1080×624 android_normal</li>
+              <li>1242×669 iphone</li>
+              <li>1242×810 iphone_x</li>
+              <li>1440×963 android_aspect_ratio_2</li>
+              <li>1536×686 android_pad</li>
+              <li>1668×761 ipad</li>
+              <li>2160×700 android_folded</li>
+              <li>1029×619 order_confirm</li>
+              <li>1120×1560 McPO</li>
+            </ul>
+          </div>
+          <div>
+            <h3>FG home hero</h3>
+            <ul>
+              <li>994×1024 home hero</li>
+            </ul>
+            <h3>FG PCU</h3>
+            <ul>
+              <li>750×1334</li>
+              <li>1125×2436</li>
+              <li>1440×3200</li>
+              <li>1536×2048</li>
+              <li>1856×2200</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <div id="package-summary" class="package-summary"></div>
       <div class="check-layout">
         <div class="results-pane">
@@ -73,7 +106,7 @@
     <section id="rename-section" class="tool-section" aria-labelledby="rename-heading">
       <header class="tool-head">
         <h2 id="rename-heading">Rename &amp; Download</h2>
-        <p>Device files use <code>{app}_{region}_{year}_{campaign}_{month}_{device}{optional_suffix}.{original_extension}</code>. Example: <code>FP_US_2026_bigcanvas_oct_android_normal.jpg</code>. Original uploads are never changed. Downloads are copies.</p>
+        <p>McSpace device files use <code>{app}_{region}_{year}_{campaign}_{month}_{device}{optional_suffix}.{original_extension}</code>. Example: <code>FP_US_2026_bigcanvas_oct_android_normal.jpg</code>. FG home hero, PCU, and McPO names stay unchanged. Original uploads are never changed. Downloads are copies.</p>
       </header>
       <form id="naming-form" class="naming-form" novalidate>
         <label>

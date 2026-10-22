@@ -1,21 +1,42 @@
 (() => {
-  const DEVICE_SIZES = [
-    { w: 1080, h: 624, key: "android_normal", package: "device" },
-    { w: 1242, h: 669, key: "iphone", package: "device" },
-    { w: 1242, h: 810, key: "iphone_x", package: "device" },
-    { w: 1440, h: 963, key: "android_aspect_ratio_2", package: "device" },
-    { w: 1536, h: 686, key: "android_pad", package: "device" },
-    { w: 1668, h: 761, key: "ipad", package: "device" },
-    { w: 2160, h: 700, key: "android_folded", package: "device" },
+  const ALL_SIZES = [
+    { w: 1080, h: 624, key: "android_normal", pack: "mcspace", role: "required", label: "android_normal" },
+    { w: 1242, h: 669, key: "iphone", pack: "mcspace", role: "required", label: "iphone" },
+    { w: 1242, h: 810, key: "iphone_x", pack: "mcspace", role: "required", label: "iphone_x" },
+    { w: 1440, h: 963, key: "android_aspect_ratio_2", pack: "mcspace", role: "required", label: "android_aspect_ratio_2" },
+    { w: 1536, h: 686, key: "android_pad", pack: "mcspace", role: "required", label: "android_pad" },
+    { w: 1668, h: 761, key: "ipad", pack: "mcspace", role: "required", label: "ipad" },
+    { w: 2160, h: 700, key: "android_folded", pack: "mcspace", role: "required", label: "android_folded" },
+    { w: 1029, h: 619, key: "order_confirm", pack: "mcspace", role: "extra", label: "order_confirm" },
+    { w: 1120, h: 1560, key: "McPO", pack: "mcspace", role: "extra", label: "McPO" },
+    { w: 994, h: 1024, key: "fg_home_hero", pack: "home_hero", role: "required", label: "FG home hero" },
+    { w: 750, h: 1334, key: "pcu_750x1334", pack: "pcu", role: "required", label: "PCU 750×1334" },
+    { w: 1125, h: 2436, key: "pcu_1125x2436", pack: "pcu", role: "required", label: "PCU 1125×2436" },
+    { w: 1440, h: 3200, key: "pcu_1440x3200", pack: "pcu", role: "required", label: "PCU 1440×3200" },
+    { w: 1536, h: 2048, key: "pcu_1536x2048", pack: "pcu", role: "required", label: "PCU 1536×2048" },
+    { w: 1856, h: 2200, key: "pcu_1856x2200", pack: "pcu", role: "required", label: "PCU 1856×2200" },
   ];
-  const EXTRA_SIZES = [
-    { w: 1029, h: 619, key: "order_confirm", package: "order_confirm" },
-    { w: 1120, h: 1560, key: "McPO", package: "mcpo" },
-  ];
-  const ALL_SIZES = [...DEVICE_SIZES, ...EXTRA_SIZES];
-  const DEVICE_KEYS = DEVICE_SIZES.map((d) => d.key);
+  const PACKS = {
+    mcspace: {
+      title: "McSpace",
+      required: ALL_SIZES.filter((s) => s.pack === "mcspace" && s.role === "required").map((s) => s.key),
+      extra: ALL_SIZES.filter((s) => s.pack === "mcspace" && s.role === "extra"),
+    },
+    home_hero: {
+      title: "FG home hero",
+      required: ["fg_home_hero"],
+      extra: [],
+    },
+    pcu: {
+      title: "FG PCU",
+      required: ALL_SIZES.filter((s) => s.pack === "pcu").map((s) => s.key),
+      extra: [],
+    },
+  };
+  const DEVICE_KEYS = PACKS.mcspace.required;
   const IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
   const SKIP_NAMES = /^(?:\._|\.)|^\.ds_store$|^thumbs\.db$|^desktop\.ini$/i;
+  const VERSION_RE = /(?:[-_])(tomorrow|tonight|today|soon|2day)$/i;
 
   const state = {
     files: [],
@@ -84,7 +105,7 @@
     const appMatch = path.match(/(?:^|[\\/_-])(FP|FG)(?:[\\/_-]|$)/i);
     const regionMatch = path.match(/(?:^|[\\/_-])(FP|FG)_([A-Z]{2,3})_/i) ||
       path.match(/(?:^|[\\/_-])(US|UK|IE|AU|CA|NZ|DE|FR|ES|IT|NL|BE|AT|CH|DK|SE|NO|FI|PL)(?:[\\/_-]|$)/i);
-    const versionMatch = name.match(/_(tomorrow|today|soon)$/i);
+    const versionMatch = name.match(VERSION_RE);
     const known = {};
     const conv = name.match(
       /^(FP|FG)_([A-Z]{2,3})_(\d{4})_(.+?)_([a-z0-9]+)_((?:android_normal|iphone_x|iphone|android_aspect_ratio_2|android_pad|ipad|android_folded|order_confirm))(?:_([a-z0-9]+))?$/i
@@ -98,7 +119,8 @@
       known.namedDevice = conv[6].toLowerCase();
       known.suffix = conv[7] ? conv[7].toLowerCase() : "";
     } else {
-      if (appMatch) known.app = appMatch[1].toUpperCase();
+      if (/^FPG(?:[_-]|$)/i.test(name) || /(?:^|[\\/_])FPG(?:[\\/_-]|$)/i.test(path)) known.app = "FG";
+      else if (appMatch) known.app = appMatch[1].toUpperCase();
       if (regionMatch) known.region = (regionMatch[2] || regionMatch[1]).toUpperCase();
       if (known.region === "FP" || known.region === "FG") delete known.region;
       if (versionMatch) known.suffix = versionMatch[1].toLowerCase();
@@ -293,8 +315,7 @@
         map.set(key, {
           key,
           files: [],
-          devices: new Set(),
-          extras: new Set(),
+          found: {},
           unsupported: 0,
           unreadable: 0,
           duplicates: 0,
@@ -305,10 +326,36 @@
       if (rec.duplicate) pkg.duplicates += 1;
       if (rec.status === "unreadable") pkg.unreadable += 1;
       else if (!rec.match) pkg.unsupported += 1;
-      else if (rec.match.package === "device") pkg.devices.add(rec.match.key);
-      else pkg.extras.add(rec.match.key);
+      else {
+        const packId = rec.match.pack;
+        if (!pkg.found[packId]) pkg.found[packId] = new Set();
+        pkg.found[packId].add(rec.match.key);
+      }
     }
     return [...map.values()];
+  }
+
+  function packLines(pkg) {
+    const lines = [];
+    const presentPacks = Object.keys(pkg.found);
+    const packsToShow = presentPacks.length ? presentPacks : [];
+    for (const packId of packsToShow) {
+      const spec = PACKS[packId];
+      if (!spec) continue;
+      const have = pkg.found[packId] || new Set();
+      const missing = spec.required.filter((k) => !have.has(k));
+      const complete = missing.length === 0;
+      lines.push(`<li class="${complete ? "ok" : "bad"}">${escapeHtml(spec.title)}: ${spec.required.filter((k) => have.has(k)).length}/${spec.required.length} ${complete ? "complete" : "incomplete"}</li>`);
+      if (missing.length) {
+        const labels = missing.map((k) => ALL_SIZES.find((s) => s.key === k)?.label || k);
+        lines.push(`<li class="bad">Missing: ${escapeHtml(labels.join(", "))}</li>`);
+      }
+      for (const extra of spec.extra) {
+        const ok = have.has(extra.key);
+        lines.push(`<li class="${ok ? "ok" : "bad"}">${escapeHtml(extra.label)} ${extra.w}×${extra.h}: ${ok ? "present" : "missing"}</li>`);
+      }
+    }
+    return lines;
   }
 
   function namingMeta() {
@@ -372,6 +419,9 @@
     if (!rec.readable || !rec.match) {
       return { name: rec.name, action: "unchanged", reason: rec.status === "unreadable" ? "File could not be read as an image." : "Unsupported dimensions. No device mapping." };
     }
+    if (rec.match.pack !== "mcspace") {
+      return { name: rec.name, action: "unchanged", reason: `${rec.match.label} is size-check only. Filename stays unchanged.` };
+    }
     if (rec.match.key === "McPO") {
       return { name: rec.name, action: "unchanged", reason: "McPO filenames stay unchanged." };
     }
@@ -414,7 +464,7 @@
     if (rec.status === "unreadable") return ["Unreadable", "status-bad"];
     if (!rec.match) return ["Unsupported size", "status-warn"];
     if (rec.duplicate) return ["Duplicate", "status-warn"];
-    if (rec.match.key === "McPO" || rec.match.key === "order_confirm") return [rec.match.key, "status-info"];
+    if (rec.match.pack !== "mcspace" || rec.match.role === "extra") return [rec.match.label || rec.match.key, "status-info"];
     return [rec.match.key, "status-ok"];
   }
 
@@ -438,21 +488,15 @@
   function renderPackages() {
     const pkgs = packages();
     if (!pkgs.length) {
-      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check each app, region, and version against the seven device sizes plus order confirmation and McPO.</p></div>`;
+      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, and FG PCU sizes. Completeness is per app, region, version, and asset pack. A PCU drop is not scored against McSpace sizes.</p></div>`;
       return;
     }
     els.packageSummary.innerHTML = pkgs.map((pkg) => {
-      const missing = DEVICE_KEYS.filter((k) => !pkg.devices.has(k));
-      const complete = missing.length === 0;
-      const hasOrder = pkg.extras.has("order_confirm");
-      const hasMcpo = pkg.extras.has("McPO");
+      const lines = packLines(pkg);
       return `<article class="pkg-card">
         <h3>${escapeHtml(pkg.key)}</h3>
-        <p class="${complete ? "ok" : "bad"}">Device package: ${pkg.devices.size}/7 ${complete ? "complete" : "incomplete"}</p>
         <ul>
-          ${missing.length ? `<li class="bad">Missing: ${missing.join(", ")}</li>` : `<li class="ok">All seven device sizes present</li>`}
-          <li class="${hasOrder ? "ok" : "bad"}">Order confirmation 1029×619: ${hasOrder ? "present" : "missing"}</li>
-          <li class="${hasMcpo ? "ok" : "bad"}">McPO 1120×1560: ${hasMcpo ? "present" : "missing"}</li>
+          ${lines.join("")}
           ${pkg.duplicates ? `<li class="bad">Duplicate mapped sizes: ${pkg.duplicates}</li>` : ""}
           ${pkg.unsupported ? `<li>Unsupported dimensions: ${pkg.unsupported}</li>` : ""}
           ${pkg.unreadable ? `<li class="bad">Unreadable: ${pkg.unreadable}</li>` : ""}
@@ -636,17 +680,24 @@
   function reviewReport(rows) {
     const pkgs = packages();
     const lines = [];
-    lines.push("McSpace Asset Checker review report");
+    lines.push("Mobile Asset Checker review report");
     lines.push("This report records dimension checks and manual reviewer notes.");
     lines.push("It is not copy approval, visual approval, or campaign sign-off.");
     lines.push("");
     for (const pkg of pkgs) {
-      const missing = DEVICE_KEYS.filter((k) => !pkg.devices.has(k));
-      lines.push(`Package: ${pkg.key}`);
-      lines.push(`Device sizes: ${pkg.devices.size}/7`);
-      if (missing.length) lines.push(`Missing: ${missing.join(", ")}`);
-      lines.push(`Order confirmation: ${pkg.extras.has("order_confirm") ? "present" : "missing"}`);
-      lines.push(`McPO: ${pkg.extras.has("McPO") ? "present" : "missing"}`);
+      lines.push(`Group: ${pkg.key}`);
+      const presentPacks = Object.keys(pkg.found);
+      for (const packId of presentPacks) {
+        const spec = PACKS[packId];
+        if (!spec) continue;
+        const have = pkg.found[packId] || new Set();
+        const missing = spec.required.filter((k) => !have.has(k));
+        lines.push(`${spec.title}: ${spec.required.filter((k) => have.has(k)).length}/${spec.required.length}`);
+        if (missing.length) lines.push(`Missing: ${missing.join(", ")}`);
+        for (const extra of spec.extra) {
+          lines.push(`${extra.label}: ${have.has(extra.key) ? "present" : "missing"}`);
+        }
+      }
       lines.push("");
     }
     lines.push("Files");
@@ -711,7 +762,7 @@
     const a = document.createElement("a");
     const stamp = new Date().toISOString().slice(0, 10);
     a.href = URL.createObjectURL(blob);
-    a.download = `mcspace-renamed-${stamp}.zip`;
+    a.download = `mobile-assets-renamed-${stamp}.zip`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
