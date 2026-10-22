@@ -206,6 +206,111 @@
     return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, "");
   }
 
+  const BURST_PACKS = new Set(["pcu", "mcspace"]);
+  let ocrWorker = null;
+  let ocrScanId = 0;
+
+  function needsBurstCheck(rec) {
+    return rec.readable && rec.url && BURST_PACKS.has(rec.match?.pack);
+  }
+
+  function normalizeOcr(text) {
+    return String(text || "")
+      .toUpperCase()
+      .replace(/0/g, "O")
+      .replace(/[^A-Z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function classifyBurst(text) {
+    const n = normalizeOcr(text);
+    if (!n) return { status: "none", key: "", label: "No expiry burst", inBurst: false };
+    if (/TOMORROW|TOMOROW/.test(n)) return { status: "found", key: "tomorrow", label: "Expires tomorrow", inBurst: true };
+    if (/TONIGHT/.test(n)) return { status: "found", key: "tonight", label: "Expires tonight", inBurst: true };
+    if (/TWO\s+DAYS|2\s+DAYS/.test(n)) return { status: "found", key: "2day", label: "Ends in two days", inBurst: true };
+    if (/\bSOON\b/.test(n)) return { status: "found", key: "soon", label: "Expires soon", inBurst: true };
+    return { status: "none", key: "", label: "No expiry burst", inBurst: false, raw: n.slice(0, 80) };
+  }
+
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("preview unread"));
+      img.src = url;
+    });
+  }
+
+  function burstCrop(img) {
+    const canvas = document.createElement("canvas");
+    const wide = img.naturalWidth / img.naturalHeight > 2.1;
+    const leftRatio = wide ? 0.26 : 0.44;
+    const topRatio = 0.12;
+    const heightRatio = 0.62;
+    const sx = 0;
+    const sy = Math.floor(img.naturalHeight * topRatio);
+    const sw = Math.max(1, Math.floor(img.naturalWidth * leftRatio));
+    const sh = Math.max(1, Math.floor(img.naturalHeight * heightRatio));
+    const scale = 2;
+    canvas.width = sw * scale;
+    canvas.height = sh * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  async function getOcrWorker() {
+    if (typeof Tesseract === "undefined") throw new Error("OCR library not loaded");
+    if (!ocrWorker) ocrWorker = await Tesseract.createWorker("eng");
+    return ocrWorker;
+  }
+
+  async function readBurst(rec) {
+    const img = await loadImage(rec.url);
+    const worker = await getOcrWorker();
+    const crop = burstCrop(img);
+    const cropResult = await worker.recognize(crop);
+    let burst = classifyBurst(cropResult.data.text);
+    if (burst.status !== "found") {
+      const full = await worker.recognize(img);
+      const fullBurst = classifyBurst(full.data.text);
+      if (fullBurst.status === "found") burst = { ...fullBurst, inBurst: false, label: `${fullBurst.label} (not in burst crop)` };
+    }
+    const fileSuffix = rec.parsed.suffix || rec.suffixOverride || "";
+    if (burst.status === "found" && fileSuffix && fileSuffix !== burst.key) {
+      burst.mismatch = true;
+      burst.label = `${burst.label} · filename ${fileSuffix}`;
+    }
+    return burst;
+  }
+
+  async function scanBursts() {
+    const scanId = ++ocrScanId;
+    const targets = state.files.filter(needsBurstCheck);
+    if (!targets.length) return;
+    for (const rec of targets) rec.burst = { status: "reading", key: "", label: "Reading burst…" };
+    renderFileList();
+    renderPackages();
+    let done = 0;
+    for (const rec of targets) {
+      if (scanId !== ocrScanId) return;
+      try {
+        rec.burst = await readBurst(rec);
+      } catch (_) {
+        rec.burst = { status: "error", key: "", label: "Burst text unread" };
+      }
+      done += 1;
+      const progress = document.getElementById("ocr-progress");
+      if (progress) progress.textContent = `Burst text ${done}/${targets.length}`;
+      renderFileList();
+      renderPackages();
+    }
+    const progress = document.getElementById("ocr-progress");
+    if (progress) progress.textContent = "Burst text checked.";
+  }
+
   function readViaImage(file) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -312,6 +417,7 @@
         status: "unsupported",
         regionOverride: "",
         suffixOverride: "",
+        burst: { status: "skipped", key: "", label: "" },
         review: {
           clipping: false,
           legibility: false,
@@ -357,6 +463,7 @@
     if (records.length) state.showFieldErrors = true;
     markDuplicates();
     render();
+    scanBursts();
   }
 
   function markDuplicates() {
@@ -430,6 +537,16 @@
         const ok = have.has(extra.key);
         lines.push(`<li class="${ok ? "ok" : "bad"}">${escapeHtml(extra.label)} ${extra.w}×${extra.h}: ${ok ? "present" : "missing"}</li>`);
       }
+    }
+    const burstFiles = pkg.files.filter((rec) => rec.burst && rec.burst.status !== "skipped");
+    if (burstFiles.length) {
+      const counts = {};
+      for (const rec of burstFiles) {
+        const label = rec.burst.status === "reading" ? "Reading burst…" : rec.burst.label || "No expiry burst";
+        counts[label] = (counts[label] || 0) + 1;
+      }
+      const summary = Object.entries(counts).map(([label, count]) => `${label} (${count})`).join("; ");
+      lines.push(`<li>Burst text: ${escapeHtml(summary)}</li>`);
     }
     return lines;
   }
@@ -570,7 +687,7 @@
       return;
     }
     els.uploadStatus.hidden = false;
-    els.uploadStatus.innerHTML = `<span>${state.files.length} file${state.files.length === 1 ? "" : "s"} loaded. Processing is local only.</span><button type="button" class="btn btn-secondary" id="clear-files">Clear</button>`;
+    els.uploadStatus.innerHTML = `<span>${state.files.length} file${state.files.length === 1 ? "" : "s"} loaded. Processing is local only. <span id="ocr-progress"></span></span><button type="button" class="btn btn-secondary" id="clear-files">Clear</button>`;
     document.getElementById("clear-files").onclick = () => {
       for (const rec of state.files) if (rec.url) URL.revokeObjectURL(rec.url);
       state.files = [];
@@ -629,9 +746,12 @@
         ${thumb}
         <div class="file-meta">
           <div class="name">${escapeHtml(rec.name)}</div>
-          <div class="sub">${escapeHtml(rec.rel)} · ${dim} · ${escapeHtml(type)}</div>
+          <div class="sub">${escapeHtml(rec.rel)} · ${dim} · ${escapeHtml(type)}${rec.burst && rec.burst.status !== "skipped" ? ` · ${escapeHtml(rec.burst.label || "Burst pending")}` : ""}</div>
         </div>
-        <span class="status ${cls}">${escapeHtml(label)}</span>
+        <div class="status-stack">
+          <span class="status ${cls}">${escapeHtml(label)}</span>
+          ${rec.burst && rec.burst.status !== "skipped" ? `<span class="status ${rec.burst.mismatch ? "status-bad" : rec.burst.status === "found" ? "status-ok" : rec.burst.status === "reading" ? "status-info" : "status-warn"}">${escapeHtml(rec.burst.label || "Burst")}</span>` : ""}
+        </div>
       </article>`;
     }).join("");
     els.fileList.querySelectorAll(".file-row").forEach((row) => {
@@ -818,6 +938,7 @@
         .filter(([k, v]) => k !== "notes" && v)
         .map(([k]) => k);
       lines.push(`- ${rec.name} | ${dim} | ${type} | ${plan.action} -> ${plan.name}`);
+      if (rec.burst && rec.burst.status !== "skipped") lines.push(`  Burst: ${rec.burst.label || rec.burst.status}`);
       if (plan.reason) lines.push(`  ${plan.reason}`);
       if (checks.length) lines.push(`  Manual flags: ${checks.join(", ")}`);
       if (rec.review.notes) lines.push(`  Notes: ${rec.review.notes}`);

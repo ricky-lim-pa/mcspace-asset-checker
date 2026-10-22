@@ -41,7 +41,7 @@
     <section id="check-section" class="tool-section" aria-labelledby="check-heading">
       <header class="tool-head">
         <h2 id="check-heading">Check Creative Assets</h2>
-        <p>Dimensions are read from the image pixels, not from the filename. The tool detects whether a drop is McSpace, FG home hero, PCU, or FC home hero, then checks that pack. FG home hero, PCU, and FC home hero are size checks only. This tool does not approve copy or visuals.</p>
+        <p>Dimensions are read from the image pixels, not from the filename. The tool detects whether a drop is McSpace, FG home hero, PCU, or FC home hero, then checks that pack. For PCU and McSpace, it also reads burst text if present: Expires soon, Expires tomorrow, Ends in two days, or Expires tonight. FG home hero, PCU, and FC home hero filenames are size checks only. This tool does not approve copy or visuals.</p>
       </header>
       <section class="size-map" aria-labelledby="size-map-heading">
         <h3 id="size-map-heading">Size map</h3>
@@ -150,10 +150,11 @@
   </main>
 
   <footer class="site-footer wrap">
-    <p>Manual visual review only. Size checks do not mean copy, layout, or campaign approval.</p>
+    <p>Manual visual review only. Size checks and burst text reads do not mean copy, layout, or campaign approval.</p>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -184,6 +184,8 @@ html, body {
 
 .file-list, .mapping-list { display: flex; flex-direction: column; gap: 8px; }
 
+.status-stack { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+
 .file-row, .map-row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto;
