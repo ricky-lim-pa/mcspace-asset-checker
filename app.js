@@ -273,6 +273,31 @@
       }).join("");
       return `<tr><th>${escapeHtml(burstLabel(ver))}</th>${tds}<td>${rowHave}/${sizeKeys.length}</td></tr>`;
     }).join("");
+    const requiredKeys = spec?.required || sizeKeys;
+    const missingCells = [];
+    if (burstPack) {
+      for (const ver of SCARCITY_KEYS) {
+        for (const key of requiredKeys) {
+          if (!(cells[`${ver}::${key}`] || []).length) {
+            const size = ALL_SIZES.find((s) => s.key === key);
+            missingCells.push(`${burstLabel(ver)} · ${size ? size.label : key}`);
+          }
+        }
+      }
+    } else {
+      for (const key of requiredKeys) {
+        if (!files.some((rec) => rec.match.key === key)) {
+          const size = ALL_SIZES.find((s) => s.key === key);
+          missingCells.push(size ? `${size.label} ${size.w}×${size.h}` : key);
+        }
+      }
+    }
+    const totalCells = burstPack ? SCARCITY_KEYS.length * requiredKeys.length : requiredKeys.length;
+    const haveCells = totalCells - missingCells.length;
+    const complete = missingCells.length === 0;
+    const verdict = complete
+      ? `All ${totalCells} required slots are present.`
+      : `${haveCells}/${totalCells} present. Missing: ${missingCells.join("; ")}.`;
     const foot = burstPack
       ? `<tr><th>Bursts present / ${SCARCITY_KEYS.length}</th>${sizeKeys.map((key) => {
           const found = new Set(
@@ -286,6 +311,7 @@
     const title = `${PACKS[packId]?.title || packId} · ${app || "Unknown app"}`;
     return `<section class="track-block">
       <h3>${escapeHtml(title)}</h3>
+      <p class="track-verdict ${complete ? "ok" : "bad"}">${escapeHtml(verdict)}</p>
       <table class="track-table"><thead>${head}</thead><tbody>${body}${foot}</tbody></table>
     </section>`;
   }
