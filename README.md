@@ -21,6 +21,8 @@ FG home hero: 994×1024.
 
 FG PCU uses the app slot names: 750×1334 normal, 1125×2436 iphone_x, 1440×3200 aspect, 1536×2048 ipad, 1856×2200 android_folded. These are not the McSpace device sizes.
 
+FC Promo Home Hero: 1200×394, 1200×606, 2048×518, 2048×614.
+
 Expiry variants such as tomorrow, tonight, soon, and 2day are grouped separately. Same size in the same version is a duplicate.
 
 ## Naming
@@ -31,7 +33,7 @@ McSpace device files:
 
 Example: `FP_US_2026_bigcanvas_oct_android_normal.jpg`
 
-McPO, FG home hero, and PCU filenames stay unchanged. Order confirmation stays unchanged unless you opt in to rename it with the `order_confirm` suffix.
+McPO, FG home hero, PCU, and FC Promo Home Hero filenames stay unchanged. Order confirmation stays unchanged unless you opt in to rename it with the `order_confirm` suffix.
 
 ## Live site
 

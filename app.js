@@ -15,6 +15,10 @@
     { w: 1440, h: 3200, key: "pcu_aspect", pack: "pcu", role: "required", label: "aspect" },
     { w: 1536, h: 2048, key: "pcu_ipad", pack: "pcu", role: "required", label: "ipad" },
     { w: 1856, h: 2200, key: "pcu_android_folded", pack: "pcu", role: "required", label: "android_folded" },
+    { w: 1200, h: 394, key: "fc_promo_1200x394", pack: "fc_promo_home_hero", role: "required", label: "1200×394" },
+    { w: 1200, h: 606, key: "fc_promo_1200x606", pack: "fc_promo_home_hero", role: "required", label: "1200×606" },
+    { w: 2048, h: 518, key: "fc_promo_2048x518", pack: "fc_promo_home_hero", role: "required", label: "2048×518" },
+    { w: 2048, h: 614, key: "fc_promo_2048x614", pack: "fc_promo_home_hero", role: "required", label: "2048×614" },
   ];
   const PACKS = {
     mcspace: {
@@ -30,6 +34,11 @@
     pcu: {
       title: "FG PCU",
       required: ALL_SIZES.filter((s) => s.pack === "pcu").map((s) => s.key),
+      extra: [],
+    },
+    fc_promo_home_hero: {
+      title: "FC Promo Home Hero",
+      required: ALL_SIZES.filter((s) => s.pack === "fc_promo_home_hero").map((s) => s.key),
       extra: [],
     },
   };
@@ -488,7 +497,7 @@
   function renderPackages() {
     const pkgs = packages();
     if (!pkgs.length) {
-      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, and FG PCU sizes. Completeness is per app, region, version, and asset pack. A PCU drop is not scored against McSpace sizes.</p></div>`;
+      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, FG PCU, and FC Promo Home Hero sizes. Completeness is per app, region, version, and asset pack. A PCU or FC drop is not scored against McSpace sizes.</p></div>`;
       return;
     }
     els.packageSummary.innerHTML = pkgs.map((pkg) => {
