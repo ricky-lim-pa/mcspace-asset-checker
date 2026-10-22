@@ -32,12 +32,12 @@
       extra: [],
     },
     pcu: {
-      title: "FG PCU",
+      title: "PCU",
       required: ALL_SIZES.filter((s) => s.pack === "pcu").map((s) => s.key),
       extra: [],
     },
     fc_promo_home_hero: {
-      title: "FC Promo Home Hero",
+      title: "FC home hero",
       required: ALL_SIZES.filter((s) => s.pack === "fc_promo_home_hero").map((s) => s.key),
       extra: [],
     },
@@ -106,7 +106,30 @@
   }
 
   function sizeKey(w, h) {
-    return ALL_SIZES.find((s) => s.w === w && s.h === h) || null;
+    const exact = ALL_SIZES.find((s) => s.w === w && s.h === h);
+    if (exact) return exact;
+    const swapped = ALL_SIZES.find((s) => s.w === h && s.h === w);
+    if (swapped) return swapped;
+    const near = ALL_SIZES.find((s) => Math.abs(s.w - w) <= 2 && Math.abs(s.h - h) <= 2);
+    if (near) return near;
+    const nearSwap = ALL_SIZES.find((s) => Math.abs(s.w - h) <= 2 && Math.abs(s.h - w) <= 2);
+    if (nearSwap) return nearSwap;
+    return null;
+  }
+
+  function inferPackFromName(path) {
+    const n = String(path || "");
+    if (/\bPCU\b/i.test(n)) return "pcu";
+    if (/\bFPC\b/i.test(n) || /\bFC[_ -]?promo/i.test(n) || /\bFC[_ -]?home[_ -]?hero/i.test(n)) return "fc_promo_home_hero";
+    if (/\bFPG_HP\b/i.test(n) || /(?:^|[\\/_-])HP(?:[\\/_-]|$)/i.test(n)) return "home_hero";
+    if (/android_normal|android_aspect_ratio_2|android_folded|android_pad|iphone_x|order_confirm|\bmcpo\b/i.test(n)) return "mcspace";
+    return null;
+  }
+
+  function filenameMcSpaceDevice(path) {
+    const n = baseOf(String(path || "")).replace(/\.[^.]+$/, "").toLowerCase().replace(/-/g, "_");
+    const tokens = ["android_aspect_ratio_2", "android_folded", "android_normal", "android_pad", "iphone_x", "iphone", "ipad", "order_confirm"];
+    return tokens.find((token) => n.includes(token)) || "";
   }
 
   function parseName(file) {
@@ -138,15 +161,31 @@
     return known;
   }
 
-  function groupKey(rec) {
+  function groupKey(rec, majority) {
     const parsed = rec.parsed;
     const meta = namingMeta();
-    const app = parsed.app || meta.app || "Unknown app";
-    const region = rec.regionOverride || parsed.region || meta.region || "Unknown region";
+    const pack = rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "unknown";
+    const packTitle = PACKS[pack]?.title || "Unknown batch";
+    const app = parsed.app || majority?.app || meta.app || "Unknown app";
+    const region = rec.regionOverride || parsed.region || majority?.region || meta.region || "Unknown region";
     const version = rec.suffixOverride != null && rec.suffixOverride !== ""
       ? rec.suffixOverride
-      : parsed.suffix || meta.suffix || "base";
-    return `${app} · ${region} · ${version}`;
+      : parsed.suffix || "base";
+    return `${packTitle} · ${app} · ${region} · ${version}`;
+  }
+
+  function majorityForPack(pack) {
+    const apps = {};
+    const regions = {};
+    for (const rec of state.files) {
+      const recPack = rec.match?.pack || inferPackFromName(rec.rel || rec.name);
+      if (recPack !== pack) continue;
+      if (rec.parsed.app) apps[rec.parsed.app] = (apps[rec.parsed.app] || 0) + 1;
+      const region = rec.regionOverride || rec.parsed.region;
+      if (region) regions[region] = (regions[region] || 0) + 1;
+    }
+    const top = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+    return { app: top(apps), region: top(regions) };
   }
 
   function campaignToken(raw) {
@@ -167,17 +206,7 @@
     return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, "");
   }
 
-  async function readDimensions(file) {
-    if (window.createImageBitmap) {
-      try {
-        const bmp = await createImageBitmap(file);
-        const dim = { w: bmp.width, h: bmp.height };
-        bmp.close();
-        return dim;
-      } catch (_) {
-        /* fall through */
-      }
-    }
+  function readViaImage(file) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
@@ -192,6 +221,27 @@
       };
       img.src = url;
     });
+  }
+
+  async function readDimensions(file) {
+    const candidates = [];
+    if (window.createImageBitmap) {
+      try {
+        const bmp = await createImageBitmap(file);
+        candidates.push({ w: bmp.width, h: bmp.height });
+        bmp.close();
+      } catch (_) {
+        /* fall through */
+      }
+    }
+    try {
+      candidates.push(await readViaImage(file));
+    } catch (_) {
+      /* fall through */
+    }
+    if (!candidates.length) throw new Error("unreadable");
+    const matched = candidates.find((dim) => sizeKey(dim.w, dim.h));
+    return matched || candidates[0];
   }
 
   async function walkEntry(entry, out, prefix) {
@@ -284,6 +334,17 @@
         rec.h = dim.h;
         rec.readable = true;
         rec.match = sizeKey(dim.w, dim.h);
+        if (!rec.match) {
+          const namedDevice = rec.parsed.namedDevice || filenameMcSpaceDevice(rec.rel || rec.name);
+          if (namedDevice) {
+            const hinted = ALL_SIZES.find((s) => s.pack === "mcspace" && s.key === namedDevice);
+            if (hinted) {
+              const d1 = Math.abs(hinted.w - dim.w) + Math.abs(hinted.h - dim.h);
+              const d2 = Math.abs(hinted.w - dim.h) + Math.abs(hinted.h - dim.w);
+              if (Math.min(d1, d2) <= 24) rec.match = hinted;
+            }
+          }
+        }
         rec.status = rec.match ? "matched" : "unsupported";
         if (!rec.suffixOverride && rec.parsed.suffix) rec.suffixOverride = rec.parsed.suffix;
         if (!rec.regionOverride && rec.parsed.region) rec.regionOverride = rec.parsed.region;
@@ -302,7 +363,8 @@
     const buckets = new Map();
     for (const rec of state.files) {
       if (!rec.match || !rec.readable) continue;
-      const key = `${groupKey(rec)}::${rec.match.key}`;
+      const pack = rec.match.pack || inferPackFromName(rec.rel || rec.name);
+      const key = `${groupKey(rec, majorityForPack(pack))}::${rec.match.key}`;
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key).push(rec);
     }
@@ -320,7 +382,8 @@
   function packages() {
     const map = new Map();
     for (const rec of state.files) {
-      const key = groupKey(rec);
+      const pack = rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "unknown";
+      const key = groupKey(rec, majorityForPack(pack));
       if (!map.has(key)) {
         map.set(key, {
           key,
@@ -517,13 +580,26 @@
     };
   }
 
+  function detectedBatches() {
+    const counts = {};
+    for (const rec of state.files) {
+      const pack = rec.match?.pack || inferPackFromName(rec.rel || rec.name) || "unknown";
+      const title = PACKS[pack]?.title || "Unknown";
+      counts[title] = (counts[title] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }
+
   function renderPackages() {
     const pkgs = packages();
     if (!pkgs.length) {
-      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, FG PCU, and FC Promo Home Hero sizes. Completeness is per app, region, version, and asset pack. A PCU or FC drop is not scored against McSpace sizes.</p></div>`;
+      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, PCU, and FC home hero sizes. The tool detects the batch from the files. A PCU or FC drop is not scored against McSpace sizes.</p></div>`;
       return;
     }
-    els.packageSummary.innerHTML = pkgs.map((pkg) => {
+    const detected = detectedBatches()
+      .map(([title, count]) => `${title} (${count} file${count === 1 ? "" : "s"})`)
+      .join(" · ");
+    const cards = pkgs.map((pkg) => {
       const lines = packLines(pkg);
       return `<article class="pkg-card">
         <h3>${escapeHtml(pkg.key)}</h3>
@@ -535,6 +611,7 @@
         </ul>
       </article>`;
     }).join("");
+    els.packageSummary.innerHTML = `<div class="pkg-card detect-card"><h3>Detected batch</h3><p>${escapeHtml(detected)}</p></div>${cards}`;
   }
 
   function renderFileList() {

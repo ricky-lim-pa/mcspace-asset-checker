@@ -170,6 +170,7 @@ html, body {
 }
 
 .pkg-card h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.detect-card { grid-column: 1 / -1; background: var(--info-bg); }
 .pkg-card ul { margin: 6px 0 0; padding-left: 1.1rem; font-size: 0.9rem; }
 .pkg-card .ok { color: var(--ok); }
 .pkg-card .bad { color: var(--bad); }
