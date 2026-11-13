@@ -245,8 +245,11 @@
 
   function renderTrackerTable(packId, app, files) {
     const spec = PACKS[packId];
+    const duoKeys = packId === "mcspace" && files.some((rec) => rec.match.pack === "duo")
+      ? PACKS.duo.required
+      : [];
     const sizeKeys = spec
-      ? spec.required.concat(spec.extra.map((s) => s.key))
+      ? spec.required.concat(spec.extra.map((s) => s.key), duoKeys)
       : [...new Set(files.map((rec) => rec.match.key))];
     const burstPack = usesBurstRows(packId);
     const versions = burstPack
@@ -343,10 +346,16 @@
       groups[key].push(rec);
     }
     els.batchTracker.innerHTML = Object.entries(groups)
+      .filter(([key]) => {
+        if (!key.startsWith("duo::")) return true;
+        const mcspaceKey = key.replace(/^duo::/, "mcspace::");
+        return !groups[mcspaceKey];
+      })
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, files]) => {
         const [packId, app] = key.split("::");
-        return renderTrackerTable(packId, app, files);
+        const duoFiles = packId === "mcspace" ? groups[`duo::${app}`] || [] : [];
+        return renderTrackerTable(packId, app, files.concat(duoFiles));
       })
       .join("");
     els.batchTracker.querySelectorAll("[data-track-ver]").forEach((btn) => {
