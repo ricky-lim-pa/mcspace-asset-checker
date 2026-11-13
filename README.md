@@ -29,13 +29,15 @@ Expiry variants such as tomorrow, tonight, soon, and 2day are grouped separately
 
 ## Naming
 
-McSpace device files:
+McSpace device and DUO files:
 
 `{app}_{region}_{year}_{campaign}_{month}_{device}{optional_suffix}.{original_extension}`
 
 Example: `FP_US_2026_bigcanvas_oct_android_normal.jpg`
 
-McPO, FG home hero, PCU, FC home hero, and DUO filenames stay unchanged. Order confirmation stays unchanged unless you opt in to rename it with the `order_confirm` suffix.
+DUO uses `PO_duo` for 1020×1520 and `duo_inner` for 2220×1563 in the device slot.
+
+McPO, FG home hero, PCU, and FC home hero filenames stay unchanged. Order confirmation stays unchanged unless you opt in to rename it with the `order_confirm` suffix.
 
 ## Live site
 

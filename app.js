@@ -1,7 +1,7 @@
 (() => {
   const ALL_SIZES = [
-    { w: 1020, h: 1520, key: "duo_1020x1520", pack: "duo", role: "required", label: "1020×1520 DUO" },
-    { w: 2220, h: 1563, key: "duo_2220x1563", pack: "duo", role: "required", label: "2220×1563 DUO" },
+    { w: 1020, h: 1520, key: "duo_1020x1520", pack: "duo", role: "required", label: "1020×1520 DUO", renameToken: "PO_duo" },
+    { w: 2220, h: 1563, key: "duo_2220x1563", pack: "duo", role: "required", label: "2220×1563 DUO", renameToken: "duo_inner" },
     { w: 1080, h: 624, key: "android_normal", pack: "mcspace", role: "required", label: "android_normal" },
     { w: 1242, h: 669, key: "iphone", pack: "mcspace", role: "required", label: "iphone" },
     { w: 1242, h: 810, key: "iphone_x", pack: "mcspace", role: "required", label: "iphone_x" },
@@ -804,7 +804,7 @@
     if (!rec.readable || !rec.match) {
       return { name: rec.name, action: "unchanged", reason: rec.status === "unreadable" ? "File could not be read as an image." : "Unsupported dimensions. No device mapping." };
     }
-    if (rec.match.pack !== "mcspace") {
+    if (rec.match.pack !== "mcspace" && !rec.match.renameToken) {
       return { name: rec.name, action: "unchanged", reason: `${rec.match.label} is size-check only. Filename stays unchanged.` };
     }
     if (rec.match.key === "McPO") {
@@ -816,10 +816,10 @@
     if (!metaComplete(meta) || !region) {
       return { name: rec.name, action: "blocked", reason: "Enter app, region, year, campaign, and month before renaming." };
     }
-    if (!DEVICE_KEYS.includes(rec.match.key) && rec.match.key !== "order_confirm") {
+    if (!rec.match.renameToken && !DEVICE_KEYS.includes(rec.match.key) && rec.match.key !== "order_confirm") {
       return { name: rec.name, action: "unchanged", reason: "No rename mapping for this asset type." };
     }
-    const device = rec.match.key;
+    const device = rec.match.renameToken || rec.match.key;
     const next = `${meta.app}_${region}_${meta.year}_${meta.campaign}_${meta.month}_${device}${suffixPart}${extOf(rec.name)}`;
     if (next === rec.name) {
       return { name: next, action: "already-correct", reason: "Filename already matches the required format." };
