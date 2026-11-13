@@ -23,7 +23,7 @@ PCU uses the app slot names: 750×1334 normal, 1125×2436 iphone_x, 1440×3200 a
 
 FC home hero: 1200×394, 1200×606, 2048×518, 2048×614.
 
-DUO: 1020×1520 and 2220×1563.
+McSpace DUO sizes: 1020×1520 and 2220×1563.
 
 Expiry variants such as tomorrow, tonight, soon, and 2day are grouped separately. Same size in the same version is a duplicate.
 

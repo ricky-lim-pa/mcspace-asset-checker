@@ -1,7 +1,7 @@
 (() => {
   const ALL_SIZES = [
-    { w: 1020, h: 1520, key: "duo_1020x1520", pack: "duo", role: "required", label: "1020×1520 DUO", renameToken: "PO_duo" },
-    { w: 2220, h: 1563, key: "duo_2220x1563", pack: "duo", role: "required", label: "2220×1563 DUO", renameToken: "duo_inner" },
+    { w: 1020, h: 1520, key: "duo_1020x1520", pack: "mcspace", role: "extra", label: "1020×1520 DUO", renameToken: "PO_duo" },
+    { w: 2220, h: 1563, key: "duo_2220x1563", pack: "mcspace", role: "extra", label: "2220×1563 DUO", renameToken: "duo_inner" },
     { w: 1080, h: 624, key: "android_normal", pack: "mcspace", role: "required", label: "android_normal" },
     { w: 1242, h: 669, key: "iphone", pack: "mcspace", role: "required", label: "iphone" },
     { w: 1242, h: 810, key: "iphone_x", pack: "mcspace", role: "required", label: "iphone_x" },
@@ -41,11 +41,6 @@
     fc_promo_home_hero: {
       title: "FC home hero",
       required: ALL_SIZES.filter((s) => s.pack === "fc_promo_home_hero").map((s) => s.key),
-      extra: [],
-    },
-    duo: {
-      title: "DUO",
-      required: ALL_SIZES.filter((s) => s.pack === "duo").map((s) => s.key),
       extra: [],
     },
   };
@@ -245,11 +240,8 @@
 
   function renderTrackerTable(packId, app, files) {
     const spec = PACKS[packId];
-    const duoKeys = packId === "mcspace" && files.some((rec) => rec.match.pack === "duo")
-      ? PACKS.duo.required
-      : [];
     const sizeKeys = spec
-      ? spec.required.concat(spec.extra.map((s) => s.key), duoKeys)
+      ? spec.required.concat(spec.extra.map((s) => s.key))
       : [...new Set(files.map((rec) => rec.match.key))];
     const burstPack = usesBurstRows(packId);
     const versions = burstPack
@@ -346,16 +338,10 @@
       groups[key].push(rec);
     }
     els.batchTracker.innerHTML = Object.entries(groups)
-      .filter(([key]) => {
-        if (!key.startsWith("duo::")) return true;
-        const mcspaceKey = key.replace(/^duo::/, "mcspace::");
-        return !groups[mcspaceKey];
-      })
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, files]) => {
         const [packId, app] = key.split("::");
-        const duoFiles = packId === "mcspace" ? groups[`duo::${app}`] || [] : [];
-        return renderTrackerTable(packId, app, files.concat(duoFiles));
+        return renderTrackerTable(packId, app, files);
       })
       .join("");
     els.batchTracker.querySelectorAll("[data-track-ver]").forEach((btn) => {
@@ -911,7 +897,7 @@
   function renderPackages() {
     const pkgs = packages();
     if (!pkgs.length) {
-      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, PCU, FC home hero, and DUO sizes. The tool detects the batch from the files. A PCU or FC drop is not scored against McSpace sizes.</p></div>`;
+      els.packageSummary.innerHTML = `<div class="pkg-card"><h3>No files yet</h3><p>Drop a delivery to check McSpace, FG home hero, PCU, and FC home hero sizes. The tool detects the batch from the files. A PCU or FC drop is not scored against McSpace sizes.</p></div>`;
       return;
     }
     const detected = detectedBatches()
